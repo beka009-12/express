@@ -4,6 +4,16 @@ import express from "express";
 import routes from "./routes";
 
 export const buildServer = () => {
+  const info = [
+    {
+      title: "Hello world",
+      name: "John Doe",
+      age: 30,
+      description:
+        "This is a sample application built with Express and TypeScript.",
+    },
+  ];
+
   const server = express();
 
   // Middleware
@@ -11,7 +21,7 @@ export const buildServer = () => {
 
   server.get("/", (req, res) => {
     res.status(200).send({
-      message: "Hello, World!",
+      message: info,
     });
   });
 
