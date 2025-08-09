@@ -3,7 +3,7 @@ import todoRoutes from "../modules/todo/todo.routes";
 import cors from "cors";
 
 const configCors = {
-  origin: ["http://localhost:3000"],
+  origin: ["http://localhost:3000", "https://express-nine-azure.vercel.app/"],
 };
 
 const router = Router();
