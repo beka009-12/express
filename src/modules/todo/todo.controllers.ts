@@ -54,6 +54,13 @@ const deletetodo = async (req: Request, res: Response) => {
     const { id } = req.params;
     const todoIndex = data.findIndex((todo) => todo.id === +id);
 
+    if (todoIndex === -1) {
+      res.status(404).send({
+        success: false,
+        message: "Todo not found",
+      });
+      return;
+    }
     data.splice(todoIndex, 1);
 
     res.status(200).send({
