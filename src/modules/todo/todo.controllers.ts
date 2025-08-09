@@ -81,7 +81,8 @@ const deletetodo = async (req: Request, res: Response) => {
 const updateTodo = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, description, name, age, image, completed } = req.body;
+    const { title, description, name, age, iamge, completed } = req.body;
+
     const todoIndex = data.findIndex((todo) => todo.id === +id);
     if (todoIndex === -1) {
       res.status(404).send({
@@ -96,18 +97,17 @@ const updateTodo = async (req: Request, res: Response) => {
     if (name !== undefined) data[todoIndex].name = name;
     if (age !== undefined) data[todoIndex].age = age;
     if (completed !== undefined) data[todoIndex].completed = completed;
-    if (image !== undefined) data[todoIndex].image = image;
-
+    if (iamge !== undefined) data[todoIndex].image = iamge;
     res.status(200).send({
       success: true,
       message: "Todo updated successfully",
       data: data[todoIndex],
     });
-  } catch (error) {
-    console.log(error);
+  } catch (e) {
+    console.error(`Error in updateTodo: ${e}`);
     res.status(500).send({
       success: false,
-      message: "Error updating todo",
+      message: `Error in updateTodo: ${e}`,
     });
   }
 };
