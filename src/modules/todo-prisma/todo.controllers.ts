@@ -5,41 +5,64 @@ const getTodos = async (req: Request, res: Response) => {
   try {
     const data = await prisma.todo.findMany();
 
+    // 1
     res.status(200).send({
-      status: "success",
-      data: data,
+      success: true,
+      data,
     });
-  } catch (error) {
-    console.log(error);
+  } catch (e) {
+    console.error(`error in getTodos: ${e}`);
+
+    res.status(500).send({
+      success: false,
+      message: `Error in getTodos: ${e}`,
+    });
   }
 };
 
 const createTodo = async (req: Request, res: Response) => {
+  const { title, image, email, age, description, name } = req.body;
   try {
-    const { title, description, image, name, age, email } = req.body;
     const data = await prisma.todo.create({
       data: {
+        title: req.body.title,
         image:
           req.body.image ||
           "https://t3.ftcdn.net/jpg/04/60/01/36/360_F_460013622_6xF8uN6ubMvLx0tAJECBHfKPoNOR5cRa.jpg",
+        age: req.body.age || 0,
+        name: req.body.name || "Anonymous",
         description: req.body.description || "",
-        title: req.body.title || "No title",
-        email: email || "",
-        name: name || "Anonymous",
-        age: age || 0,
+        email: req.body.email || "",
       },
     });
-    res.status(201).send({
-      status: "success",
-      data: data,
+    res.status(200).send({
+      success: true,
+      data,
     });
-  } catch (error) {
-    console.error(`Error in createTodo: ${error}`);
+  } catch (e) {
+    console.error(`error in createTodo: ${e}`);
+  }
+};
+
+const deleteTodo = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const data = await prisma.todo.delete({
+      where: {
+        id: +id,
+      },
+    });
+    res.status(200).send({
+      success: true,
+      data,
+    });
+  } catch (e) {
+    console.error(`error in deleteTodo: ${e}`);
     res.status(500).send({
       success: false,
-      message: `Error in createTodo status 500: ${error}`,
+      message: `Error in deleteTodo: ${e}`,
     });
   }
 };
 
-export default { getTodos, createTodo };
+export default { getTodos, createTodo, deleteTodo };
