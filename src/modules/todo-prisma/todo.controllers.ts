@@ -3,7 +3,31 @@ import prisma from "../../plugin/prisma";
 
 const getTodos = async (req: Request, res: Response) => {
   try {
-    const data = await prisma.todo.findMany();
+    const { id } = req.params;
+
+    const data = await prisma.todo.findFirst({
+      where: {
+        id: id ? +id : undefined,
+      },
+    });
+
+    res.status(200).send({
+      success: true,
+      data,
+    });
+  } catch (e) {
+    console.error(`error in getTodos: ${e}`);
+
+    res.status(500).send({
+      success: false,
+      message: `Error in getTodos: ${e}`,
+    });
+  }
+};
+
+const getTodoByID = async (req: Request, res: Response) => {
+  try {
+    const data = await prisma.todo.findFirst();
 
     // 1
     res.status(200).send({
@@ -70,4 +94,4 @@ const deleteTodo = async (req: Request, res: Response) => {
   }
 };
 
-export default { getTodos, createTodo, deleteTodo };
+export default { getTodos, createTodo, deleteTodo, getTodoByID };
