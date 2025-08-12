@@ -4,7 +4,7 @@ import todoPrismaControllers from "./todo.controllers";
 const router = Router();
 
 router.get("/get-all", todoPrismaControllers.getTodos);
-router.get("/createTodo", todoPrismaControllers.createTodo);
-router.get("/delete/:id", todoPrismaControllers.deleteTodo);
+router.post("/create", todoPrismaControllers.createTodo);
+router.delete("/delete/:id", todoPrismaControllers.deleteTodo);
 
 export default router;
