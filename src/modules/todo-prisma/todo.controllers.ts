@@ -5,7 +5,7 @@ const getTodos = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const data = await prisma.todo.findFirst({
+    const data = await prisma.todo.findMany({
       where: {
         id: id ? +id : undefined,
       },
@@ -94,4 +94,36 @@ const deleteTodo = async (req: Request, res: Response) => {
   }
 };
 
-export default { getTodos, createTodo, deleteTodo, getTodoByID };
+const updateTodo = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { title, image, email, age, description, name } = req.body;
+
+  try {
+    const data = await prisma.todo.update({
+      where: {
+        id: +id,
+      },
+      data: {
+        title,
+        image,
+        email,
+        age,
+        description,
+        name,
+      },
+    });
+
+    res.status(200).send({
+      success: true,
+      data,
+    });
+  } catch (e) {
+    console.error(`error in updateTodo: ${e}`);
+    res.status(500).send({
+      success: false,
+      message: `Error in updateTodo: ${e}`,
+    });
+  }
+};
+
+export default { getTodos, createTodo, deleteTodo, getTodoByID, updateTodo };
