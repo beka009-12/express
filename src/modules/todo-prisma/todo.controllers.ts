@@ -25,7 +25,7 @@ const createTodo = async (req: Request, res: Response) => {
   try {
     const data = await prisma.todo.create({
       data: {
-        title: req.body.title,
+        title: req.body.title || "Default Title",
         image:
           req.body.image ||
           "https://t3.ftcdn.net/jpg/04/60/01/36/360_F_460013622_6xF8uN6ubMvLx0tAJECBHfKPoNOR5cRa.jpg",
@@ -41,6 +41,10 @@ const createTodo = async (req: Request, res: Response) => {
     });
   } catch (e) {
     console.error(`error in createTodo: ${e}`);
+    res.status(500).send({
+      success: false,
+      message: `Error in createTodo: ${e}`,
+    });
   }
 };
 
@@ -52,6 +56,7 @@ const deleteTodo = async (req: Request, res: Response) => {
         id: +id,
       },
     });
+
     res.status(200).send({
       success: true,
       data,
