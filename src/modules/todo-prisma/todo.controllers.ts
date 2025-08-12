@@ -18,12 +18,12 @@ const createTodo = async (req: Request, res: Response) => {
   try {
     const data = await prisma.todo.create({
       data: {
-        image: "",
-        description: "",
-        title: "",
-        email: "",
-        name: "",
-        age: "",
+        image: "aaa",
+        description: "aaa",
+        title: "aaa",
+        email: "aaa",
+        name: "aaa",
+        age: "1",
       },
     });
     res.status(201).send({
