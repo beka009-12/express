@@ -81,7 +81,9 @@ const updateTodo = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { title, description, name, age, image } = req.body;
+
     const todoIndex = data.findIndex((todo) => todo.id === +id);
+
     if (todoIndex === -1) {
       res.status(404).send({
         success: false,

@@ -48,3 +48,5 @@
 *.flv
 *.mov
 *.wmv
+
+/src/generated/prisma
