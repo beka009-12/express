@@ -21,6 +21,9 @@ const createTodo = async (req: Request, res: Response) => {
         image: "",
         description: "",
         title: "",
+        email: "",
+        name: "",
+        age: "",
       },
     });
     res.status(201).send({
