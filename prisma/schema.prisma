@@ -15,5 +15,5 @@ model Todo {
   name        String
   image       String
   description String
-  age         Int
+  age         String
 }
