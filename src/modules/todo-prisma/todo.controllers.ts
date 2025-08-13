@@ -45,18 +45,13 @@ const getTodoByID = async (req: Request, res: Response) => {
 };
 
 const createTodo = async (req: Request, res: Response) => {
-  const { title, image, email, age, description, name } = req.body;
+  const { title, description } = req.body;
   try {
     const data = await prisma.todo.create({
       data: {
+        userId: 1,
         title: req.body.title || "Default Title",
-        image:
-          req.body.image ||
-          "https://t3.ftcdn.net/jpg/04/60/01/36/360_F_460013622_6xF8uN6ubMvLx0tAJECBHfKPoNOR5cRa.jpg",
-        age: req.body.age || 0,
-        name: req.body.name || "Anonymous",
         description: req.body.description || "",
-        email: req.body.email || "",
       },
     });
     res.status(200).send({
@@ -105,11 +100,7 @@ const updateTodo = async (req: Request, res: Response) => {
       },
       data: {
         title,
-        image,
-        email,
-        age,
         description,
-        name,
       },
     });
 
