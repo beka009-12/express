@@ -45,11 +45,11 @@ const getTodoByID = async (req: Request, res: Response) => {
 };
 
 const createTodo = async (req: Request, res: Response) => {
-  const { title, description } = req.body;
+  const { title, description, userId } = req.body;
   try {
     const data = await prisma.todo.create({
       data: {
-        userId: 1,
+        userId: userId,
         title: req.body.title || "Default Title",
         description: req.body.description || "",
       },
@@ -91,7 +91,7 @@ const deleteTodo = async (req: Request, res: Response) => {
 
 const updateTodo = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { title, image, email, age, description, name } = req.body;
+  const { title, description } = req.body;
 
   try {
     const data = await prisma.todo.update({

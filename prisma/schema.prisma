@@ -11,10 +11,11 @@ datasource db {
 model User {
   id    Int    @id @default(autoincrement())
   fullName  String
+  login String
+  password String
   
   todos Todo[]
 }
-
 
 model Todo {
   id          Int    @id @default(autoincrement())
