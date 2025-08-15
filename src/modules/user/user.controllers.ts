@@ -27,9 +27,9 @@ const signUpUser = async (req: Request, res: Response) => {
 };
 
 const signInUser = async (req: Request, res: Response) => {
-  const { login, password } = req.body;
+  const { login, password, fullName } = req.body;
   try {
-    if (!login || !password) {
+    if (!login || !password || !fullName) {
       return res.status(401).send({
         success: false,
         message: "Login and password are required",
@@ -39,6 +39,7 @@ const signInUser = async (req: Request, res: Response) => {
       where: {
         login,
         password,
+        fullName,
       },
     });
 
@@ -62,24 +63,30 @@ const signInUser = async (req: Request, res: Response) => {
   }
 };
 
-const getUser = async (req: Request, res: Response) => {
-  const { id } = req.query;
+const getUserById = async (req: Request, res: Response) => {
   try {
-    const data = await prisma.user.findMany({
+    const { id } = req.params;
+    const data = await prisma.user.findFirst({
       where: {
-        id: id ? +id : undefined,
+        id: +id,
       },
     });
+
+    if (!data) {
+      return res.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
 
     res.status(200).send({
       success: true,
       data,
     });
   } catch (e) {
-    console.error(`error in getUser: ${e}`);
     res.status(500).send({
       success: false,
-      message: `Error in getUser: ${e}`,
+      message: `error in getUserById: ${e}`,
     });
   }
 };
@@ -109,7 +116,7 @@ const updateUser = async (req: Request, res: Response) => {
 };
 
 export default {
-  getUser,
+  getUserById,
   signUpUser,
   signInUser,
   updateUser,

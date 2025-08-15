@@ -3,55 +3,52 @@ import prisma from "../../plugin/prisma";
 
 const getTodos = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-
+    const { userId } = req.params;
     const data = await prisma.todo.findMany({
       where: {
-        id: id ? +id : undefined,
+        userId: +userId,
       },
     });
-
     res.status(200).send({
       success: true,
       data,
     });
   } catch (e) {
-    console.error(`error in getTodos: ${e}`);
-
     res.status(500).send({
       success: false,
-      message: `Error in getTodos: ${e}`,
+      message: `error in getTodos: ${e}`,
     });
   }
 };
 
-const getTodoByID = async (req: Request, res: Response) => {
+const getTodoById = async (req: Request, res: Response) => {
   try {
-    const data = await prisma.todo.findFirst();
-
-    // 1
+    const { id } = req.params;
+    const data = await prisma.todo.findFirst({
+      where: {
+        id: +id,
+      },
+    });
     res.status(200).send({
       success: true,
       data,
     });
   } catch (e) {
-    console.error(`error in getTodos: ${e}`);
-
     res.status(500).send({
       success: false,
-      message: `Error in getTodos: ${e}`,
+      message: `error in getTodoById: ${e}`,
     });
   }
 };
 
 const createTodo = async (req: Request, res: Response) => {
-  const { title, description, userId } = req.body;
   try {
+    const { userId, title, description } = req.body;
     const data = await prisma.todo.create({
       data: {
         userId: userId,
-        title: req.body.title || "Default Title",
-        description: req.body.description || "",
+        title: title,
+        description: description,
       },
     });
     res.status(200).send({
@@ -59,48 +56,25 @@ const createTodo = async (req: Request, res: Response) => {
       data,
     });
   } catch (e) {
-    console.error(`error in createTodo: ${e}`);
     res.status(500).send({
       success: false,
-      message: `Error in createTodo: ${e}`,
-    });
-  }
-};
-
-const deleteTodo = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  try {
-    const data = await prisma.todo.delete({
-      where: {
-        id: +id,
-      },
-    });
-
-    res.status(200).send({
-      success: true,
-      data,
-    });
-  } catch (e) {
-    console.error(`error in deleteTodo: ${e}`);
-    res.status(500).send({
-      success: false,
-      message: `Error in deleteTodo: ${e}`,
+      message: `error in createTodo: ${e}`,
     });
   }
 };
 
 const updateTodo = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { title, description } = req.body;
-
   try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+
     const data = await prisma.todo.update({
       where: {
         id: +id,
       },
       data: {
-        title,
-        description,
+        title: title,
+        description: description,
       },
     });
 
@@ -109,12 +83,31 @@ const updateTodo = async (req: Request, res: Response) => {
       data,
     });
   } catch (e) {
-    console.error(`error in updateTodo: ${e}`);
     res.status(500).send({
       success: false,
-      message: `Error in updateTodo: ${e}`,
+      message: `error in updateTodo: ${e}`,
     });
   }
 };
 
-export default { getTodos, createTodo, deleteTodo, getTodoByID, updateTodo };
+const deleteTodo = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const data = await prisma.todo.delete({
+      where: {
+        id: +id,
+      },
+    });
+    res.status(200).send({
+      success: true,
+      data,
+    });
+  } catch (e) {
+    res.status(500).send({
+      success: false,
+      message: `error in deleteTodo: ${e}`,
+    });
+  }
+};
+
+export default { getTodos, getTodoById, createTodo, updateTodo, deleteTodo };
