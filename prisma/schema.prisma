@@ -1,0 +1,76 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_NEST")
+}
+
+// Пользователь
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String?
+  name      String?
+  avatar    String? 
+  role      UserRole  @default(USER)
+  cart      Cart[]
+  stores    Store[]           
+  favorites Product[] @relation("Favorites")  
+  createdAt DateTime  @default(now())
+}
+ 
+// Магазин
+model Store {
+  id        Int       @id @default(autoincrement())
+  name      String
+  ownerId   Int
+  owner     User      @relation(fields: [ownerId], references: [id])
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+// Товар
+model Product {
+  id          Int       @id @default(autoincrement())
+  shopId      Int
+  store       Store     @relation(fields: [shopId], references: [id])
+  category    String
+  brand       String
+  title       String           
+  description String
+  images      String[]
+  sizes       Int[]
+  colors      String[]
+  price       Float
+  newPrice    Float?
+  sale        Boolean
+  inStock     Boolean
+  rating      Float?
+  reviews     Int?
+  tags        String[]
+  createdAt   DateTime  @default(now())
+
+  carts       Cart[]
+  favoritedBy User[] @relation("Favorites")
+}
+
+// Корзина
+model Cart {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  productId Int
+  quantity  Int      @default(1)
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// Роли пользователей
+enum UserRole {
+  ADMIN
+  OWNER
+  USER
+}
