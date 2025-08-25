@@ -2,24 +2,13 @@
 CREATE TYPE "public"."UserRole" AS ENUM ('ADMIN', 'OWNER', 'USER');
 
 -- CreateTable
-CREATE TABLE "public"."Admin" (
-    "id" SERIAL NOT NULL,
-    "email" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
-    "name" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Admin_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "public"."User" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "password" TEXT,
     "name" TEXT,
     "avatar" TEXT,
-    "role" "public"."UserRole" NOT NULL,
+    "role" "public"."UserRole" NOT NULL DEFAULT 'USER',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
@@ -76,9 +65,6 @@ CREATE TABLE "public"."_Favorites" (
 
     CONSTRAINT "_Favorites_AB_pkey" PRIMARY KEY ("A","B")
 );
-
--- CreateIndex
-CREATE UNIQUE INDEX "Admin_email_key" ON "public"."Admin"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "public"."User"("email");
