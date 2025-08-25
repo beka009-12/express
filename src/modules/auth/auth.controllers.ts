@@ -5,7 +5,7 @@ import { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 
 const prisma = new PrismaClient();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const client = new OAuth2Client(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
 
 const signUpUser = async (req: Request, res: Response) => {
   const { email, password, name, adminKey } = req.body;
@@ -82,30 +82,33 @@ const googleAuth = async (req: Request, res: Response) => {
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
+
     const payload = ticket.getPayload();
     if (!payload || !payload.email)
       return res.status(400).json({ message: "Невалидный токен" });
 
+    // ищем пользователя
     let user = await prisma.user.findUnique({
       where: { email: payload.email },
     });
+
+    // создаём, если нет
     if (!user) {
       user = await prisma.user.create({
         data: {
           email: payload.email,
           name: payload.name || "No Name",
           avatar: payload.picture,
-          role: "USER",
+          role: UserRole.USER,
         },
       });
     }
 
+    // генерируем JWT
     const appToken = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET!,
-      {
-        expiresIn: "7d",
-      }
+      { expiresIn: "7d" }
     );
 
     res.json({ user, token: appToken });

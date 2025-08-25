@@ -5,7 +5,7 @@ import authRoutes from "../modules/auth/auth.routes";
 const app = express();
 
 const corsOptions = {
-  origin: "http://localhost:3000",
+  origin: ["http://localhost:3000", "https://front-rho-lilac.vercel.app"],
   credentials: true,
 };
 
