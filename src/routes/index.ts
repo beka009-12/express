@@ -1,17 +1,13 @@
-import express from "express";
+import { Router } from "express";
 import cors from "cors";
 import authRoutes from "../modules/auth/auth.routes";
 
-const app = express();
-
-const corsOptions = {
-  origin: ["http://localhost:3000", "https://front-rho-lilac.vercel.app"],
-  credentials: true,
+const configCors = {
+  origin: ["http://localhost:3000"],
 };
 
-app.use(cors(corsOptions)); // глобально для всех маршрутов
-app.use(express.json());
+const router = Router();
 
-app.use("/auth", authRoutes);
+router.use("/auth", cors(configCors), authRoutes);
 
-export default app;
+export default router;

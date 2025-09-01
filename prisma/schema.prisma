@@ -8,69 +8,168 @@ datasource db {
   url      = env("DATABASE_URL_NEST")
 }
 
+//
 // Пользователь
+//
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  password  String?
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  password  String     // пароль хранится в виде hash
   name      String?
   avatar    String? 
-  role      UserRole  @default(USER)
+  phone     String?    // для заказов в КР очень актуально
+  role      UserRole   @default(USER)
+
   cart      Cart[]
-  stores    Store[]           
-  favorites Product[] @relation("Favorites")  
-  createdAt DateTime  @default(now())
-}
- 
-// Магазин
-model Store {
-  id        Int       @id @default(autoincrement())
-  name      String
-  ownerId   Int
-  owner     User      @relation(fields: [ownerId], references: [id])
-  products  Product[]
-  createdAt DateTime  @default(now())
+  stores    Store[]
+  favorites Favorite[]  
+  orders    Order[]
+  reviews   Review[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
-// Товар
-model Product {
+//
+// Магазин
+//
+model Store {
   id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  logo        String?
+  address     String?
+  region      String?
+
+  ownerId     Int
+  owner       User      @relation(fields: [ownerId], references: [id])
+
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+//
+// Товар
+//
+model Product {
+  id          Int        @id @default(autoincrement())
   shopId      Int
-  store       Store     @relation(fields: [shopId], references: [id])
+  store       Store      @relation(fields: [shopId], references: [id])
+
   category    String
   brand       String
   title       String           
   description String
   images      String[]
-  sizes       Int[]
+  sizes       String[]   // вместо Int[], тк бывают S, M, L, XL
   colors      String[]
   price       Float
-  newPrice    Float?
-  sale        Boolean
-  inStock     Boolean
-  rating      Float?
-  reviews     Int?
-  tags        String[]
-  createdAt   DateTime  @default(now())
+  newPrice    Float?     // если меньше price → значит скидка
+  stockCount  Int        @default(0) // количество на складе
+  inStock     Boolean    @default(true)
 
+  tags        String[]
+  createdAt   DateTime   @default(now()) 
   carts       Cart[]
-  favoritedBy User[] @relation("Favorites")
+  favorites   Favorite[]  
+  reviews     Review[]
+  orderItems  OrderItem[]
 }
 
+//
 // Корзина
+//
 model Cart {
   id        Int      @id @default(autoincrement())
   userId    Int
   productId Int
   quantity  Int      @default(1)
+
   user      User     @relation(fields: [userId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
+
   createdAt DateTime @default(now())
 }
 
+//
+// Избранное
+//
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int 
+  productId Int   
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId]) 
+}
+
+//
+// Заказы
+//
+model Order {
+  id              Int         @id @default(autoincrement())
+  userId          Int
+  user            User        @relation(fields: [userId], references: [id])
+  products        OrderItem[]
+  total           Float
+  status          OrderStatus @default(PENDING)
+
+  // Новые поля для доставки
+  deliveryName    String      // имя получателя
+  deliveryPhone   String      // телефон получателя
+  deliveryAddress String      // адрес доставки
+
+  createdAt       DateTime    @default(now())
+}
+
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+//
+// Отзывы
+//
+model Review {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  productId Int
+  rating    Int      // 1-5
+  comment   String?
+
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+//
 // Роли пользователей
+//
 enum UserRole {
   ADMIN
   OWNER
   USER
+}
+
+//
+// Статусы заказа
+//
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELED
 }
