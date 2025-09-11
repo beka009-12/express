@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const app_1 = require("./app");
 const server = (0, app_1.buildServer)();
 const start = async () => {
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT || 5002;
     try {
         server.listen({
             port: PORT,

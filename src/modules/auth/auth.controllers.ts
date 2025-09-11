@@ -5,47 +5,41 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// Интерфейс запроса с user
+interface AuthRequest extends Request {
+  user?: {
+    id: number;
+    role: string;
+  };
+}
+
 const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, name, phone } = req.body;
+    const { email, password, name } = req.body;
 
-    // 1. Проверка заполненности
-    if (!email || !password || !name) {
+    if (!email || !password || !name)
       return res
         .status(400)
         .json({ message: "Заполните все обязательные поля" });
-    }
 
-    // 2. Проверяем, есть ли пользователь
     const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    if (existingUser)
       return res
         .status(400)
         .json({ message: "Такой email уже зарегистрирован" });
-    }
 
-    // 3. Хэшируем пароль
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Создаём пользователя
     const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        phone,
-        role: "USER",
-      },
+      data: { email, password: hashedPassword, name, role: "USER" },
     });
 
-    // 5. Создаём JWT токен
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || "secret_key",
       { expiresIn: "7d" }
     );
 
-    // 6. Отдаём результат
     return res.status(201).json({
       message: "Регистрация успешна",
       user: {
@@ -63,4 +57,61 @@ const register = async (req: Request, res: Response) => {
   }
 };
 
-export default { register };
+const login = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ message: "Email и пароль обязательны" });
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user)
+      return res.status(401).json({ message: "Неверный email или пароль" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(401).json({ message: "Неверный email или пароль" });
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET || "secret_key",
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
+      message: "Вход успешен",
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error("Ошибка логина:", error);
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+const getProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, phone: true, role: true },
+    });
+
+    if (!user)
+      return res.status(404).json({ message: "Пользователь не найден" });
+
+    return res.status(200).json({ user });
+  } catch (error) {
+    console.error("Ошибка получения профиля:", error);
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export { register, login, getProfile };

@@ -81,6 +81,9 @@ CREATE TABLE "public"."Order" (
     "userId" INTEGER NOT NULL,
     "total" DOUBLE PRECISION NOT NULL,
     "status" "public"."OrderStatus" NOT NULL DEFAULT 'PENDING',
+    "deliveryName" TEXT NOT NULL,
+    "deliveryPhone" TEXT NOT NULL,
+    "deliveryAddress" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Order_pkey" PRIMARY KEY ("id")

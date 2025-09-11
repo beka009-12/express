@@ -11,21 +11,15 @@ const routes_1 = __importDefault(require("./routes"));
 const buildServer = () => {
     const info = [
         {
-            title: "Hello world",
-            name: "John Doe",
-            age: 30,
-            description: "This is a sample application built with Express and TypeScript.",
+            description: "Sample app with Express, TypeScript, Prisma & JWT",
         },
     ];
     const server = (0, express_1.default)();
-    // Middleware
     server.use(express_1.default.json());
     server.get("/", (req, res) => {
-        res.status(200).send({
-            message: info,
-        });
+        res.status(200).send({ message: info });
     });
-    server.use("/api/v1", routes_1.default);
+    server.use("/api/v1", routes_1.default); // подключаем маршруты
     return server;
 };
 exports.buildServer = buildServer;

@@ -14,12 +14,12 @@ datasource db {
 model User {
   id        Int        @id @default(autoincrement())
   email     String     @unique
-  password  String     // пароль хранится в виде hash
+  password  String
   name      String?
-  avatar    String? 
-  phone     String?    // для заказов в КР очень актуально
+  avatar    String?
+  phone     String?   // <- обязательно с ?
   role      UserRole   @default(USER)
-
+  
   cart      Cart[]
   stores    Store[]
   favorites Favorite[]  
@@ -110,7 +110,7 @@ model Favorite {
 //
 // Заказы
 //
-model Order {
+model Order { 
   id              Int         @id @default(autoincrement())
   userId          Int
   user            User        @relation(fields: [userId], references: [id])
