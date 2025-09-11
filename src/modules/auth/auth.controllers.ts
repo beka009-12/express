@@ -114,4 +114,15 @@ const getProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { register, login, getProfile };
+const Logout = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+
+    return res.status(200).json({ message: "Выход успешен" });
+  } catch (error) {
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export { register, login, getProfile, Logout };
