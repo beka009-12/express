@@ -1,13 +1,12 @@
 import { Router } from "express";
-import cors from "cors";
 import authRoutes from "../modules/auth/auth.routes";
-
-const configCors = {
-  origin: ["http://localhost:3000", "https://shop-indol-alpha.vercel.app"],
-};
 
 const router = Router();
 
-router.use("/auth", cors(configCors), authRoutes);
+// Роуты авторизации
+router.use("/auth", authRoutes);
+
+// Можно подключать другие модули, например:
+// router.use("/products", productsRoutes);
 
 export default router;
