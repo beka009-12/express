@@ -1,5 +1,7 @@
-import express, { Request, Response, NextFunction } from "express";
-import cors from "cors";
+import { config } from "dotenv";
+config();
+
+import express from "express";
 import routes from "./routes";
 
 export const buildServer = () => {
@@ -11,29 +13,13 @@ export const buildServer = () => {
 
   const server = express();
 
-  // === ГЛОБАЛЬНЫЙ CORS ===
-  server.use(
-    cors({
-      origin: ["http://localhost:3000", "https://shop-indol-alpha.vercel.app"],
-      credentials: true,
-    })
-  );
-
   server.use(express.json());
 
-  // Тестовый корневой роут
-  server.get("/", (_req: Request, res: Response) => {
+  server.get("/", (req, res) => {
     res.status(200).send({ message: info });
   });
 
-  // Подключаем роуты /api/v1
-  server.use("/api/v1", routes);
-
-  // === ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК ===
-  server.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err.stack);
-    res.status(500).json({ message: err.message });
-  });
+  server.use("/api/v1", routes); // подключаем маршруты
 
   return server;
 };

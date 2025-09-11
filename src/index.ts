@@ -1,23 +1,21 @@
 import { buildServer } from "./app";
 
 const server = buildServer();
-
 const start = async () => {
-  const PORT = process.env.PORT || 5000; // Railway подставит свой PORT
+  const PORT = process.env.PORT || 5002;
   try {
     server.listen(
       {
-        port: Number(PORT),
+        port: PORT,
         host: "0.0.0.0",
       },
       () => {
         console.log(`${new Date()}`);
-        console.log("Server running at: http://localhost:" + PORT);
+        console.log("server running at: http://localhost:" + PORT);
       }
     );
   } catch (error) {
     console.error(error);
   }
 };
-
 start();
