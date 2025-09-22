@@ -1,11 +1,10 @@
-import { Request, Response } from "express";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
+import { Request, Response } from "express";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
-// Интерфейс запроса с user
 interface AuthRequest extends Request {
   user?: {
     id: number;
@@ -13,25 +12,25 @@ interface AuthRequest extends Request {
   };
 }
 
-const register = async (req: Request, res: Response) => {
+// todo signUpSeller
+const signUpSeller = async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
-    if (!email || !password || !name)
-      return res
-        .status(400)
-        .json({ message: "Заполните все обязательные поля" });
-
     const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser)
-      return res
-        .status(400)
-        .json({ message: "Такой email уже зарегистрирован" });
+    if (existingUser) {
+      return res.status(400).json({ message: "Пользователь уже существует" });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name, role: "USER" },
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        role: "OWNER",
+      },
     });
 
     const token = jwt.sign(
@@ -41,23 +40,19 @@ const register = async (req: Request, res: Response) => {
     );
 
     return res.status(201).json({
-      message: "Регистрация успешна",
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        phone: user.phone,
-        role: "USER",
-      },
+      message: "Продавец зарегистрирован",
+      user,
       token,
+      data: req.body,
     });
   } catch (error) {
-    console.error("Ошибка регистрации:", error);
+    console.error(error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-const login = async (req: Request, res: Response) => {
+// todo signInSeller
+const signInSeller = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password)
@@ -94,18 +89,16 @@ const login = async (req: Request, res: Response) => {
   }
 };
 
-const getProfile = async (req: AuthRequest, res: Response) => {
+// todo getProfileSaller
+const getProfileSaller = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+    if (!req.user) return res.status(401).json({ message: "Не авторизован" });
+    if (req.user.role !== "OWNER")
+      return res.status(403).json({ message: "Доступ запрещён" });
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        cart: true, // массив корзины
-        favorites: true, // массив избранного
-        orders: true, // массив заказов
-      },
+      where: { id: req.user.id },
+      include: { stores: true },
     });
 
     if (!user)
@@ -118,40 +111,53 @@ const getProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-const Logout = async (req: AuthRequest, res: Response) => {
+// ! store
+const createStore = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
 
-    return res.status(200).json({ message: "Выход успешен" });
+    if (!userId) {
+      return res.status(401).json({ message: "Не авторизован" });
+    }
+
+    if (req.user?.role !== "OWNER") {
+      return res.status(403).json({ message: "Доступ запрещён" });
+    }
+
+    const existingStore = await prisma.store.findFirst({
+      where: { ownerId: userId },
+    });
+
+    if (existingStore) {
+      return res.status(400).json({ message: "У вас уже есть магазин" });
+    }
+
+    const { name, description, logo, address, region } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: "У магазина должно быть имя" });
+    }
+
+    // Создание нового магазина
+    const store = await prisma.store.create({
+      data: {
+        name,
+        description,
+        logo,
+        address,
+        region,
+        ownerId: userId,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Магазин успешно создан",
+      store,
+    });
   } catch (error) {
+    console.error("Ошибка создания магазина:", error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-const updateProfile = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
-
-    const { name, phone, avatar } = req.body;
-
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: { name, phone, avatar },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        avatar: true,
-      },
-    });
-
-    return res.status(200).json({ user: updatedUser });
-  } catch (error) {
-    return res.status(500).json({ message: "Ошибка при обновлении профиля" });
-  }
-};
-
-export { register, login, getProfile, Logout, updateProfile };
+export { signUpSeller, getProfileSaller, signInSeller, createStore };

@@ -5,10 +5,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL_NEST")
 }
 
-//
+//о
 // Пользователь
 //
 model User {
@@ -21,7 +21,7 @@ model User {
   role      UserRole   @default(USER)
   
   cart      Cart[]
-  stores    Store[]
+  stores    Store[] 
   favorites Favorite[]  
   orders    Order[]
   reviews   Review[]
@@ -41,7 +41,7 @@ model Store {
   address     String?
   region      String?
 
-  ownerId     Int
+  ownerId     Int       @unique 
   owner       User      @relation(fields: [ownerId], references: [id])
 
   products    Product[]
@@ -65,7 +65,7 @@ model Product {
   colors      String[]
   price       Float
   newPrice    Float?     // если меньше price → значит скидка
-  stockCount  Int        @default(0) // количество на складе
+  stockCount  Int        @default(0) 
   inStock     Boolean    @default(true)
 
   tags        String[]
