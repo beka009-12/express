@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
+import { v4 as uuidv4 } from "uuid";
 
 const prisma = new PrismaClient();
 
@@ -34,8 +35,8 @@ const signUpSeller = async (req: Request, res: Response) => {
     });
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "secret_key",
+      { id: user.id, role: user.role, jti: uuidv4() },
+      process.env.JWT_SECRET!,
       { expiresIn: "7d" }
     );
 
@@ -67,8 +68,8 @@ const signInSeller = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Неверный email или пароль" });
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "secret_key",
+      { id: user.id, role: user.role, jti: uuidv4() },
+      process.env.JWT_SECRET!,
       { expiresIn: "7d" }
     );
 

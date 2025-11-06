@@ -2,10 +2,10 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
+import { v4 as uuidv4 } from "uuid";
 
 const prisma = new PrismaClient();
 
-// Интерфейс запроса с user
 interface AuthRequest extends Request {
   user?: {
     id: number;
@@ -35,8 +35,8 @@ const register = async (req: Request, res: Response) => {
     });
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "secret_key",
+      { id: user.id, role: user.role, jti: uuidv4() },
+      process.env.JWT_SECRET!,
       { expiresIn: "7d" }
     );
 
@@ -61,7 +61,7 @@ const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password)
-      return res.status(400).json({ message: "Email и пароль обязательны" });
+      return res.status(400).send({ message: "Email и пароль обязательны" });
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user)
@@ -72,8 +72,8 @@ const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Неверный email или пароль" });
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "secret_key",
+      { id: user.id, role: user.role, jti: uuidv4() },
+      process.env.JWT_SECRET!,
       { expiresIn: "7d" }
     );
 

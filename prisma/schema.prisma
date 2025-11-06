@@ -48,6 +48,37 @@ model Store {
   createdAt   DateTime  @default(now())
 }
 
+
+//
+// Категория с иерархией
+//
+model Category {
+  id        Int        @id @default(autoincrement())
+  name      String
+  parentId  Int?
+  parent    Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryChildren")
+  products  Product[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([name, parentId]) 
+}
+
+
+//
+// Бренд
+//
+model Brand {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  logoUrl    String?    
+  products   Product[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
 //
 // Товар
 //
@@ -56,25 +87,32 @@ model Product {
   shopId      Int
   store       Store      @relation(fields: [shopId], references: [id])
 
-  category    String
-  brand       String
-  title       String           
+  categoryId  Int
+  category    Category   @relation(fields: [categoryId], references: [id])
+
+  brandId     Int
+  brand       Brand      @relation(fields: [brandId], references: [id])
+
+  title       String
   description String
   images      String[]
-  sizes       String[]   // вместо Int[], тк бывают S, M, L, XL
+  sizes       String[]
   colors      String[]
   price       Float
-  newPrice    Float?     // если меньше price → значит скидка
-  stockCount  Int        @default(0) 
-  inStock     Boolean    @default(true)
-
+  newPrice    Float?
+  stockCount  Int        @default(0)
   tags        String[]
-  createdAt   DateTime   @default(now()) 
+  createdAt   DateTime   @default(now())
+
+  isArchived  Boolean    @default(false)    
+  archivedAt  DateTime?   
+
   carts       Cart[]
-  favorites   Favorite[]  
+  favorites   Favorite[]
   reviews     Review[]
   orderItems  OrderItem[]
 }
+
 
 //
 // Корзина
