@@ -10,7 +10,9 @@ const router = Router();
 router.post("/sign-up-saller", sallerRouter.signUpSeller);
 router.post("/sign-in-saller", sallerRouter.signInSeller);
 router.post("/create-store", authMiddleware, sallerRouter.createStore);
+router.post("/refresh-token-saller", sallerRouter.refreshTokenSeller);
+router.post("/logout-saller", authMiddleware, sallerRouter.logoutSeller);
 // ! GET
-router.get("/saller-profile", authMiddleware, sallerRouter.getProfileSaller);
+router.get("/saller-profile", authMiddleware, sallerRouter.getProfileSeller);
 
 export default router;

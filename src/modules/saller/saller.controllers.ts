@@ -13,15 +13,31 @@ interface AuthRequest extends Request {
   };
 }
 
-// todo signUpSeller
+// 🔹 Генерация токенов
+const generateTokens = (user: any) => {
+  const accessToken = jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET!,
+    { expiresIn: "15m" } // короткий срок жизни access токена
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: "7d" }
+  );
+
+  return { accessToken, refreshToken };
+};
+
+// 🔹 Регистрация продавца
 const signUpSeller = async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    if (existingUser)
       return res.status(400).json({ message: "Пользователь уже существует" });
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -34,25 +50,33 @@ const signUpSeller = async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, jti: uuidv4() },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    // сохраняем refresh токен в базе
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id },
+    });
+
+    // сохраняем в cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+    });
 
     return res.status(201).json({
       message: "Продавец зарегистрирован",
       user,
-      token,
-      data: req.body,
+      accessToken,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Ошибка регистрации:", error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-// todo signInSeller
+// 🔹 Вход продавца
 const signInSeller = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -67,11 +91,19 @@ const signInSeller = async (req: Request, res: Response) => {
     if (!isMatch)
       return res.status(401).json({ message: "Неверный email или пароль" });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, jti: uuidv4() },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    // сохраняем refresh токен в базе
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id },
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return res.status(200).json({
       message: "Вход успешен",
@@ -82,7 +114,7 @@ const signInSeller = async (req: Request, res: Response) => {
         phone: user.phone,
         role: user.role,
       },
-      token,
+      accessToken,
     });
   } catch (error) {
     console.error("Ошибка логина:", error);
@@ -90,8 +122,48 @@ const signInSeller = async (req: Request, res: Response) => {
   }
 };
 
-// todo getProfileSaller
-const getProfileSaller = async (req: AuthRequest, res: Response) => {
+// 🔹 Обновление токена (refresh)
+const refreshTokenSeller = async (req: Request, res: Response) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.status(401).json({ message: "Нет refresh токена" });
+
+    const stored = await prisma.refreshToken.findUnique({ where: { token } });
+    if (!stored)
+      return res.status(403).json({ message: "Неверный refresh токен" });
+
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as any;
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user)
+      return res.status(404).json({ message: "Пользователь не найден" });
+
+    const { accessToken, refreshToken: newRefresh } = generateTokens(user);
+
+    // ротация refresh токена
+    await prisma.refreshToken.update({
+      where: { token },
+      data: { token: newRefresh },
+    });
+
+    res.cookie("refreshToken", newRefresh, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.json({ accessToken });
+  } catch (error) {
+    console.error("Ошибка refresh:", error);
+    return res
+      .status(403)
+      .json({ message: "Невалидный или просроченный refresh токен" });
+  }
+};
+
+// 🔹 Профиль продавца
+const getProfileSeller = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Не авторизован" });
     if (req.user.role !== "OWNER")
@@ -112,34 +184,28 @@ const getProfileSaller = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ! store
+// 🔹 Создание магазина
 const createStore = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
 
-    if (!userId) {
-      return res.status(401).json({ message: "Не авторизован" });
-    }
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
 
-    if (req.user?.role !== "OWNER") {
+    if (req.user?.role !== "OWNER")
       return res.status(403).json({ message: "Доступ запрещён" });
-    }
 
     const existingStore = await prisma.store.findFirst({
       where: { ownerId: userId },
     });
 
-    if (existingStore) {
+    if (existingStore)
       return res.status(400).json({ message: "У вас уже есть магазин" });
-    }
 
     const { name, description, logo, address, region } = req.body;
 
-    if (!name) {
+    if (!name)
       return res.status(400).json({ message: "У магазина должно быть имя" });
-    }
 
-    // Создание нового магазина
     const store = await prisma.store.create({
       data: {
         name,
@@ -161,4 +227,25 @@ const createStore = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { signUpSeller, getProfileSaller, signInSeller, createStore };
+// 🔹 Выход (logout)
+const logoutSeller = async (req: Request, res: Response) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (token) {
+      await prisma.refreshToken.deleteMany({ where: { token } });
+      res.clearCookie("refreshToken");
+    }
+    return res.json({ message: "Выход успешен" });
+  } catch (error) {
+    return res.status(500).json({ message: "Ошибка выхода" });
+  }
+};
+
+export {
+  signUpSeller,
+  signInSeller,
+  getProfileSeller,
+  createStore,
+  refreshTokenSeller,
+  logoutSeller,
+};

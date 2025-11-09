@@ -13,20 +13,32 @@ interface AuthRequest extends Request {
   };
 }
 
+const generateTokens = (user: any) => {
+  const accessToken = jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET!,
+    { expiresIn: "15m" }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: "7d" }
+  );
+
+  return { accessToken, refreshToken };
+};
+
 const register = async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
     if (!email || !password || !name)
-      return res
-        .status(400)
-        .json({ message: "Заполните все обязательные поля" });
+      return res.status(400).json({ message: "Заполните все поля" });
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser)
-      return res
-        .status(400)
-        .json({ message: "Такой email уже зарегистрирован" });
+      return res.status(400).json({ message: "Email уже зарегистрирован" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -34,22 +46,23 @@ const register = async (req: Request, res: Response) => {
       data: { email, password: hashedPassword, name, role: "USER" },
     });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, jti: uuidv4() },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id },
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return res.status(201).json({
       message: "Регистрация успешна",
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        phone: user.phone,
-        role: "USER",
-      },
-      token,
+      user,
+      accessToken,
     });
   } catch (error) {
     console.error("Ошибка регистрации:", error);
@@ -61,7 +74,7 @@ const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password)
-      return res.status(400).send({ message: "Email и пароль обязательны" });
+      return res.status(400).json({ message: "Email и пароль обязательны" });
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user)
@@ -71,22 +84,23 @@ const login = async (req: Request, res: Response) => {
     if (!isMatch)
       return res.status(401).json({ message: "Неверный email или пароль" });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, jti: uuidv4() },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id },
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return res.status(200).json({
       message: "Вход успешен",
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        phone: user.phone,
-        role: user.role,
-      },
-      token,
+      user,
+      accessToken,
     });
   } catch (error) {
     console.error("Ошибка логина:", error);
@@ -118,17 +132,18 @@ const getProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-const Logout = async (req: AuthRequest, res: Response) => {
+const logout = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
-
-    return res.status(200).json({ message: "Выход успешен" });
+    const token = req.cookies.refreshToken;
+    if (token) {
+      await prisma.refreshToken.deleteMany({ where: { token } });
+      res.clearCookie("refreshToken");
+    }
+    return res.json({ message: "Выход успешен" });
   } catch (error) {
-    return res.status(500).json({ message: "Ошибка сервера" });
+    return res.status(500).json({ message: "Ошибка выхода" });
   }
 };
-
 const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -154,4 +169,44 @@ const updateProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { register, login, getProfile, Logout, updateProfile };
+const refresh = async (req: Request, res: Response) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.status(401).json({ message: "Нет refresh токена" });
+
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token },
+    });
+    if (!storedToken)
+      return res.status(403).json({ message: "Неверный refresh токен" });
+
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as any;
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user)
+      return res.status(404).json({ message: "Пользователь не найден" });
+
+    const { accessToken, refreshToken: newRefresh } = generateTokens(user);
+
+    await prisma.refreshToken.update({
+      where: { token },
+      data: { token: newRefresh },
+    });
+
+    res.cookie("refreshToken", newRefresh, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.json({ accessToken });
+  } catch (error) {
+    console.error("Ошибка refresh:", error);
+    return res
+      .status(403)
+      .json({ message: "Невалидный или просроченный refresh токен" });
+  }
+};
+
+export { register, login, getProfile, logout, updateProfile, refresh };

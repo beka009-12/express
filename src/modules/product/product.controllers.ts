@@ -239,7 +239,6 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ✅ GET ALL PRODUCTS FOR USERS (with filters)
 const getAllProductsForUsers = async (req: Request, res: Response) => {
   try {
     const { category, brand, minPrice, maxPrice, inStock } = req.query;

@@ -14,12 +14,8 @@ router.post(
   productControllers.createProduct
 );
 //! get
-router.get("/products", authMiddleware, productControllers.getProduct);
-router.get(
-  "/products-for-user",
-  authMiddleware,
-  productControllers.getAllProductsForUsers
-);
+router.get("/products", productControllers.getProduct);
+router.get("/products-for-user", productControllers.getAllProductsForUsers);
 //! get-by-id
 router.get(
   "/product-for-user/:id",
