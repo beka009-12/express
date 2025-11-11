@@ -25,19 +25,11 @@ model User {
   favorites     Favorite[]
   orders        Order[]
   reviews       Review[]
-  refreshTokens RefreshToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model RefreshToken {
-  id        Int      @id @default(autoincrement())
-  token     String   @unique
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
 //
 // Магазин
 //

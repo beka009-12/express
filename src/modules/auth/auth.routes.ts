@@ -10,7 +10,6 @@ const router = Router();
 router.post("/sign-up", authControllers.register);
 router.post("/sign-in", authControllers.login);
 router.post("/logout", authMiddleware, authControllers.logout);
-router.post("/refresh-token", authControllers.refresh);
 // ! GET
 router.get("/profile", authMiddleware, authControllers.getProfile);
 // ! PUT
