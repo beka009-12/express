@@ -72,4 +72,37 @@ const deleteBrand = async (req: Request, res: Response) => {
   }
 };
 
-export { getBrands, createBrands, deleteBrand, updateBrand };
+const getBrandById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "ID бренда не указан" });
+    }
+
+    const brandId = Number(id);
+    if (!brandId) {
+      return res.status(400).json({ message: "Некорректный ID бренда" });
+    }
+
+    const brand = await prisma.brand.findUnique({
+      where: {
+        id: brandId,
+      },
+      include: {
+        products: true,
+      },
+    });
+
+    if (!brand) {
+      return res.status(404).json({ message: "Бренд не найден" });
+    }
+
+    return res.json(brand);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Ошибка при поиске бренда" });
+  }
+};
+
+export { getBrands, createBrands, deleteBrand, updateBrand, getBrandById };
