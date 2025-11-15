@@ -10,9 +10,8 @@ import brandRoutes from "../modules/brand/brand.routes";
 const configCors = {
   origin: [
     "http://localhost:3000",
-    "https://shop-indol-alpha.vercel.app",
-    "http://localhost:3001",
     "https://shop-one-bay.vercel.app",
+    "http://localhost:3001",
   ],
 };
 

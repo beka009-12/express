@@ -156,7 +156,7 @@ model Order {
   // Новые поля для доставки
   deliveryName    String // имя получателя
   deliveryPhone   String // телефон получателя
-  deliveryAddress String // адрес доставки
+  deliveryAddress String 
 
   createdAt DateTime @default(now())
 }
