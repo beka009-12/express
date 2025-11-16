@@ -3,42 +3,18 @@ import { Request, Response } from "express";
 
 const prisma = new PrismaClient();
 
-const getCategory = async (req: Request, res: Response) => {
+const getCategories = async (req: Request, res: Response) => {
   try {
     const categories = await prisma.category.findMany({
-      include: {
-        children: {
-          include: {
-            children: true,
-          },
-        },
-      },
-      orderBy: {
-        name: "asc",
-      },
+      include: { parent: true, children: true },
+      orderBy: { name: "asc" },
     });
-    const parentCategories = categories.filter((cate) => !cate.parentId);
-
-    return res.status(200).json({ categories: parentCategories });
+    res.status(200).json({ categories });
   } catch (error) {
+    console.error("Ошибка при получении категорий:", error);
     res.status(500).json({ message: "Ошибка сервера при получении категорий" });
+  } finally {
+    await prisma.$disconnect();
   }
 };
-
-const createCategory = (req: Request, res: Response) => {
-  try {
-    const { name, parentId } = req.body;
-
-    if (!name)
-      return res
-        .status(400)
-        .json({ message: "Название категории обязательно" });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Ошибка при создании категории",
-      error: error,
-    });
-  }
-};
-
-export { getCategory };
+export { getCategories };

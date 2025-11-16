@@ -52,66 +52,50 @@ model Store {
 // Категория с иерархией
 // 
 model Category {
-  id          Int        @id @default(autoincrement())
-  name        String
-  parentId    Int?       
-  parent      Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryChildren")
-
-  topLevelId  Int?     
-  topLevel    Category? @relation("TopLevelCategories", fields: [topLevelId], references: [id])
-  topChildren Category[] @relation("TopLevelCategories")
-
-  products    Product[]  
-
-  brands      Brand[]   @relation("BrandCategories") // какие бренды поддерживает категорию
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
+  id Int @id @default(autoincrement())
+  name String
+  parentId Int?
+  parent Category? @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren") 
+  products Product[] 
+  createdAt DateTime @default(now()) 
+  updatedAt DateTime @updatedAt 
   @@unique([name, parentId]) 
 }
 
-model Brand {
-  id         Int        @id @default(autoincrement())
-  name       String
-  logoUrl    String?
-  categories Category[] @relation("BrandCategories")
-  products   Product[]
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+model Brand { 
+  id Int @id @default(autoincrement())
+  name String @unique
+  logoUrl String?
+  products Product[] 
+  createdAt DateTime @default(now()) 
+  updatedAt DateTime @updatedAt 
 }
 
-
-model Product {
-  id        Int       @id @default(autoincrement())
-  shopId    Int
-  store     Store     @relation(fields: [shopId], references: [id])
-
-  categoryId Int
-  category   Category @relation(fields: [categoryId], references: [id])
-
-  brandId    Int
-  brand      Brand    @relation(fields: [brandId], references: [id])
-
-  title       String
-  description String
-  images      String[]
-  sizes       String[]
-  colors      String[]
-  price       Float
-  newPrice    Float?
-  stockCount  Int      @default(0)
-  tags        String[]
-  isArchived  Boolean  @default(false)
-  archivedAt  DateTime?
-
-  carts       Cart[]
-  favorites   Favorite[]
-  reviews     Review[]
-  orderItems  OrderItem[]
-
-  createdAt   DateTime @default(now())
+model Product { 
+  id Int @id @default(autoincrement()) 
+  shopId Int 
+  store Store @relation(fields: [shopId], references: [id]) 
+  categoryId Int 
+  category Category @relation(fields: [categoryId], references: [id])
+  brandId Int 
+  brand Brand @relation(fields: [brandId], references: [id]) 
+  title String 
+  description String 
+  images String[] 
+  sizes String[] 
+  colors String[] 
+  price Float 
+  newPrice Float?
+  stockCount Int @default(0)
+  tags String[] 
+  createdAt DateTime @default(now()) 
+  isArchived Boolean @default(false) 
+  archivedAt DateTime? 
+  carts Cart[] 
+  favorites Favorite[] 
+  reviews Review[] 
+  orderItems OrderItem[] 
 }
 
 
