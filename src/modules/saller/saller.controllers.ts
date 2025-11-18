@@ -122,7 +122,9 @@ const createStore = async (req: AuthRequest, res: Response) => {
     }
 
     if (req.user?.role !== "OWNER") {
-      return res.status(403).json({ message: "Доступ запрещён" });
+      return res
+        .status(403)
+        .json({ message: "У вас нет прав создавать магазин" });
     }
 
     const existingStore = await prisma.store.findFirst({
