@@ -11,7 +11,7 @@ const configCors = {
   origin: [
     "http://localhost:3000",
     "https://shop-one-bay.vercel.app",
-    'https://seller-point.vercel.app',
+    "https://seller-point.vercel.app",
     "http://localhost:3001",
   ],
 };
