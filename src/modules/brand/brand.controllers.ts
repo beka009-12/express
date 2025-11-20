@@ -1,13 +1,17 @@
 import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 const prisma = new PrismaClient();
+
 const createBrand = async (req: Request, res: Response) => {
   try {
     const { name, logoUrl } = req.body;
+
     if (!name) {
       return res.status(400).json({ message: "Название бренда обязательно!" });
     }
+
     const brand = await prisma.brand.create({ data: { name, logoUrl } });
+
     return res.status(201).json({ message: "Бренд создан", brand });
   } catch (error: any) {
     console.error(error);
@@ -16,6 +20,7 @@ const createBrand = async (req: Request, res: Response) => {
       .json({ message: "Ошибка при создании", error: error.message });
   }
 };
+
 const getBrands = async (req: Request, res: Response) => {
   try {
     const brands = await prisma.brand.findMany({
@@ -28,6 +33,7 @@ const getBrands = async (req: Request, res: Response) => {
       .json({ message: "Ошибка при получении брендов", error: error.message });
   }
 };
+
 const getBrandById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -78,4 +84,5 @@ const deleteBrand = async (req: Request, res: Response) => {
       .json({ message: "Ошибка при удалении бренда", error: error.message });
   }
 };
+
 export { createBrand, deleteBrand, getBrandById, getBrands, updateBrand };
