@@ -10,23 +10,19 @@ import brandRoutes from "../modules/brand/brand.routes";
 const configCors = {
   origin: [
     "http://localhost:3000",
-    "http://localhost:3001",
     "https://shop-one-bay.vercel.app",
     "https://seller-point.vercel.app",
+    "http://localhost:3001",
   ],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 };
 
 const router = Router();
 
-router.use(cors(configCors));
-
-router.use("/auth", authRoutes);
-router.use("/saller", sallerRouts);
-router.use("/commodity", product);
-router.use("/upload", file);
-router.use("/category", categoryRoutes);
-router.use("/brand", brandRoutes);
+router.use("/auth", cors(configCors), authRoutes);
+router.use("/saller", cors(configCors), sallerRouts);
+router.use("/commodity", cors(configCors), product);
+router.use("/upload", cors(configCors), file);
+router.use("/category", cors(configCors), categoryRoutes);
+router.use("/brand", cors(configCors), brandRoutes);
 
 export default router;
