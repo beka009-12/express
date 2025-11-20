@@ -1,13 +1,21 @@
 import { buildServer } from "./app";
-import { config } from "dotenv";
-config();
 
-const app = buildServer();
-
-const PORT = Number(process.env.PORT) || 5002;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Open: http://localhost:${PORT} (локально)`);
-  console.log(`Railway URL: https://express-production-b873.up.railway.app`);
-});
+const server = buildServer();
+const start = async () => {
+  const PORT = process.env.PORT || 5003;
+  try {
+    server.listen(
+      {
+        port: PORT,
+        host: "0.0.0.0",
+      },
+      () => {
+        console.log(`${new Date()}`);
+        console.log("server running at: http://localhost:" + PORT);
+      }
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
+start();
