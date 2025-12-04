@@ -45,13 +45,12 @@ const createProduct = async (req: AuthRequest, res: Response) => {
     }
 
     const uploadedUrls: string[] = [];
-
     if (files && files.length > 0) {
-      const MAX_FILES = 5;
+      const MAX_FILES = 6;
       if (files.length > MAX_FILES) {
         return res
           .status(400)
-          .json({ message: `Максимум ${MAX_FILES} файлов можно загрузить.` });
+          .json({ message: "Максимум ${MAX_FILES} файлов можно загрузить." });
       }
 
       for (const file of files) {
@@ -61,9 +60,7 @@ const createProduct = async (req: AuthRequest, res: Response) => {
           .upload(`uploads/${fileName}`, file.buffer, {
             contentType: file.mimetype,
           });
-
         if (error) throw error;
-
         uploadedUrls.push(
           `${process.env.SUPABASE_URL}/storage/v1/object/public/product-image/${data.path}`
         );

@@ -9,6 +9,7 @@ const getCategories = async (req: Request, res: Response) => {
       include: { parent: true, children: true },
       orderBy: { name: "asc" },
     });
+
     res.status(200).json({ categories });
   } catch (error) {
     console.error("Ошибка при получении категорий:", error);

@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
+import { supabase } from "../../plugin/supabase";
 
 const prisma = new PrismaClient();
 
@@ -112,6 +113,16 @@ const getProfileSaller = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const logautSeller = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+    return res.status(200).json({ message: "Выход успешен" });
+  } catch (error) {
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
 // ! store
 const createStore = async (req: AuthRequest, res: Response) => {
   try {
@@ -122,9 +133,9 @@ const createStore = async (req: AuthRequest, res: Response) => {
     }
 
     if (req.user?.role !== "OWNER") {
-      return res
-        .status(403)
-        .json({ message: "У вас нет прав создавать магазин" });
+      return res.status(403).json({
+        message: "У вас нет прав создавать магазин",
+      });
     }
 
     const existingStore = await prisma.store.findFirst({
@@ -141,12 +152,11 @@ const createStore = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "У магазина должно быть имя" });
     }
 
-    // Создание нового магазина
     const store = await prisma.store.create({
       data: {
         name,
         description,
-        logo,
+        logo, // ←  сюда прилетает URL из store-logos
         address,
         region,
         ownerId: userId,
@@ -163,13 +173,32 @@ const createStore = async (req: AuthRequest, res: Response) => {
   }
 };
 
-const logautSeller = async (req: AuthRequest, res: Response) => {
+const uploadStoreLogo = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
-    return res.status(200).json({ message: "Выход успешен" });
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const ext = req.file.originalname.split(".").pop();
+    const fileName = `${Date.now()}-${uuidv4()}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from("store-logos") // ← НОВЫЙ bucket
+      .upload(`uploads/${fileName}`, req.file.buffer, {
+        contentType: req.file.mimetype,
+      });
+
+    if (error) throw error;
+
+    res.status(200).json({
+      name: fileName,
+      url: `${process.env.SUPABASE_URL}/storage/v1/object/public/${data.path}`,
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Ошибка сервера" });
+    res.status(500).json({
+      message: `Error uploading store logo`,
+      error: (error as Error).message,
+    });
   }
 };
 
@@ -179,4 +208,5 @@ export {
   signInSeller,
   createStore,
   logautSeller,
+  uploadStoreLogo,
 };

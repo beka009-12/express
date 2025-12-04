@@ -10,5 +10,6 @@ router.post(
   upload.array("files", 10),
   uploadControllers.uploadMultipleFiles
 );
+// ! store-upload
 
 export default router;
