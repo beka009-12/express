@@ -39,18 +39,17 @@ const createProduct = async (req: AuthRequest, res: Response) => {
     const store = await prisma.store.findFirst({
       where: { ownerId: req.user.id },
     });
-
-    if (!store) {
+    if (!store)
       return res.status(400).json({ message: "Сначала создайте магазин" });
-    }
 
+    // Загрузка файлов
     const uploadedUrls: string[] = [];
     if (files && files.length > 0) {
       const MAX_FILES = 6;
       if (files.length > MAX_FILES) {
         return res
           .status(400)
-          .json({ message: "Максимум ${MAX_FILES} файлов можно загрузить." });
+          .json({ message: `Максимум ${MAX_FILES} файлов можно загрузить.` });
       }
 
       for (const file of files) {
@@ -76,12 +75,11 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         description,
         images: uploadedUrls,
         sizes: sizes ? JSON.parse(sizes) : [],
-        colors: colors ? JSON.parse(colors) : [],
+        colors: colors ? JSON.parse(colors) : [], // массив строк
         price: Number(price),
         newPrice: newPrice ? Number(newPrice) : null,
         stockCount: stockCount ? Number(stockCount) : 0,
         tags: tags ? JSON.parse(tags) : [],
-
         isArchived: false,
         archivedAt: null,
       },
@@ -91,10 +89,10 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.status(201).json({ message: "Товар создан", product });
+    return res.status(201).json({ message: "Товар создан", product });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Ошибка при создании товара" });
+    return res.status(500).json({ message: "Ошибка при создании товара" });
   }
 };
 
@@ -212,20 +210,25 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
     const updatedProduct = await prisma.product.update({
       where: { id: Number(id) },
       data: {
-        categoryId: Number(categoryId),
-        brandId: Number(brandId),
-        title,
-        description,
-        images,
-        sizes,
-        colors,
-        price: price ? Number(price) : product.price,
-        newPrice: newPrice ? Number(newPrice) : product.newPrice,
-        stockCount: stockCount ? Number(stockCount) : product.stockCount,
-        tags,
+        title: title ?? product.title,
+        description: description ?? product.description,
+        images: images ?? product.images,
+        sizes: sizes ?? product.sizes,
+        colors: colors ?? product.colors,
+        price: price !== undefined ? Number(price) : product.price,
+        newPrice: newPrice !== undefined ? Number(newPrice) : product.newPrice,
+        stockCount:
+          stockCount !== undefined ? Number(stockCount) : product.stockCount,
+        tags: tags ?? product.tags,
 
         isArchived: stockCount === 0,
         archivedAt: stockCount === 0 ? new Date() : null,
+
+        // Обновление связей через connect
+        category: categoryId
+          ? { connect: { id: Number(categoryId) } }
+          : undefined,
+        brand: brandId ? { connect: { id: Number(brandId) } } : undefined,
       },
     });
 

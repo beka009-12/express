@@ -20,5 +20,6 @@ router.post(
   upload.single("file"),
   sallerRouter.uploadStoreLogo
 );
+router.get("/my-store", authMiddleware, sallerRouter.getMyStore);
 
 export default router;
