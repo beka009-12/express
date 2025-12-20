@@ -1,11 +1,9 @@
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "../../plugin/supabase";
-
-const prisma = new PrismaClient();
+import { prisma } from "../../prisma";
 
 interface AuthRequest extends Request {
   user?: {

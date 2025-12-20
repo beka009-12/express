@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import { supabase } from "../../plugin/supabase";
-
-const prisma = new PrismaClient();
+import { prisma } from "../../prisma";
 
 interface AuthRequest extends Request {
   user?: {
