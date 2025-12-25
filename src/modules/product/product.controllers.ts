@@ -52,15 +52,20 @@ const createProduct = async (req: AuthRequest, res: Response) => {
 
       for (const file of files) {
         const fileName = `${Date.now()}-${file.originalname}`;
+
         const { data, error } = await supabase.storage
           .from("product-image")
           .upload(`uploads/${fileName}`, file.buffer, {
             contentType: file.mimetype,
           });
+
         if (error) throw error;
-        uploadedUrls.push(
-          `${process.env.SUPABASE_URL}/storage/v1/object/public/product-image/${data.path}`
-        );
+
+        const { data: publicUrlData } = supabase.storage
+          .from("product-image")
+          .getPublicUrl(data.path);
+
+        uploadedUrls.push(publicUrlData.publicUrl);
       }
     }
 
