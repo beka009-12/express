@@ -205,7 +205,7 @@ const getMyStore = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Не авторизован" });
 
-    const store = await prisma.store.findUnique({ where: { ownerId: userId } });
+    const store = await prisma.store.findFirst({ where: { ownerId: userId } });
 
     if (!store) return res.status(404).json({ message: "Магазин не найден" });
     return res.status(200).json({ store });

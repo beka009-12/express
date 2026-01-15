@@ -100,7 +100,6 @@ const getProfile = async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        cart: true, // массив корзины
         favorites: true, // массив избранного
         orders: true, // массив заказов
       },

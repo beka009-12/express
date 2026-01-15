@@ -20,16 +20,16 @@ model User {
   phone    String?
   role     UserRole @default(USER)
 
-  cart      Cart[]
-  stores    Store[]
+  cartItems Cart[]
   favorites Favorite[]
   orders    Order[]
   reviews   Review[]
+  stores    Store[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("User")
+  @@map("users")
 }
 
 //
@@ -43,29 +43,34 @@ model Store {
   address     String?
   region      String?
 
-  ownerId Int  @unique
+  ownerId Int
   owner   User @relation(fields: [ownerId], references: [id])
 
   products  Product[]
   createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("stores")
 }
 
 //
 // Категория с иерархией
-// 
+//
 model Category {
-  id           Int        @id @default(autoincrement())
-  name         String
-  parentId     Int?
-  categoryLogo String?
-  parent       Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
-  children     Category[] @relation("CategoryChildren")
-  products     Product[]
+  id       Int    @id @default(autoincrement())
+  name     String
+  parentId Int?
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+
+  products Product[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([name, parentId])
+  @@map("categories")
 }
 
 model Brand {
@@ -76,33 +81,43 @@ model Brand {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("brands")
 }
 
 model Product {
-  id          Int         @id @default(autoincrement())
-  shopId      Int
-  store       Store       @relation(fields: [shopId], references: [id])
-  categoryId  Int
-  category    Category    @relation(fields: [categoryId], references: [id])
-  brandId     Int
-  brand       Brand       @relation(fields: [brandId], references: [id])
+  id         Int  @id @default(autoincrement())
+  storeId    Int
+  categoryId Int
+  brandId    Int?
+
   title       String
   description String
   images      String[]
-  sizes       String[]
-  colors      String[]
-  price       Float
-  newPrice    Float?
-  stockCount  Int         @default(0)
-  tags        String[]
-  archivedAt  DateTime?
-  carts       Cart[]
-  favorites   Favorite[]
-  reviews     Review[]
-  orderItems  OrderItem[]
+  price       Decimal  @db.Decimal(10, 2)
+  oldPrice    Decimal? @db.Decimal(10, 2)
 
-  createdAt  DateTime @default(now())
-  isArchived Boolean  @default(false)
+  stockCount Int      @default(0)
+  tags       String[]
+
+  isActive   Boolean   @default(true)
+  archivedAt DateTime?
+
+  store    Store    @relation(fields: [storeId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+  brand    Brand?   @relation(fields: [brandId], references: [id])
+
+  cartItems  Cart[]
+  favorites  Favorite[]
+  reviews    Review[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([price])
+  @@map("products")
 }
 
 //
@@ -118,13 +133,15 @@ model Cart {
   product Product @relation(fields: [productId], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("cart_items")
 }
 
 //
 // Избранное
 //
 model Favorite {
-  id        Int @id @default(autoincrement())
   userId    Int
   productId Int
 
@@ -134,36 +151,41 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+  @@map("favorites")
 }
 
 //
 // Заказы
 //
 model Order {
-  id       Int         @id @default(autoincrement())
-  userId   Int
-  user     User        @relation(fields: [userId], references: [id])
-  products OrderItem[]
-  total    Float
-  status   OrderStatus @default(PENDING)
+  id     Int         @id @default(autoincrement())
+  userId Int
+  total  Decimal     @db.Decimal(10, 2)
+  status OrderStatus @default(PENDING)
 
-  // Новые поля для доставки
-  deliveryName    String // имя получателя
-  deliveryPhone   String // телефон получателя
+  deliveryName    String
+  deliveryPhone   String
   deliveryAddress String
 
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+
   createdAt DateTime @default(now())
+
+  @@map("orders")
 }
 
 model OrderItem {
-  id        Int   @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   orderId   Int
   productId Int
   quantity  Int
-  price     Float
+  price     Decimal @db.Decimal(10, 2)
 
   order   Order   @relation(fields: [orderId], references: [id])
   product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
 }
 
 //
@@ -173,13 +195,16 @@ model Review {
   id        Int     @id @default(autoincrement())
   userId    Int
   productId Int
-  rating    Int // 1-5
+  rating    Int
   comment   String?
 
   user    User    @relation(fields: [userId], references: [id])
   product Product @relation(fields: [productId], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("reviews")
 }
 
 //
@@ -191,9 +216,6 @@ enum UserRole {
   USER
 }
 
-//
-// Статусы заказа
-//
 enum OrderStatus {
   PENDING
   PAID
