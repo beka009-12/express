@@ -35,7 +35,7 @@ const register = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, role: user.role, jti: uuidv4() },
       process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     return res.status(201).json({
@@ -72,7 +72,7 @@ const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, role: user.role, jti: uuidv4() },
       process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     return res.status(200).json({
@@ -100,7 +100,6 @@ const getProfile = async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        favorites: true, // массив избранного
         orders: true, // массив заказов
       },
     });

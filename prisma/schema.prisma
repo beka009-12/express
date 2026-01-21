@@ -8,7 +8,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//о
+//
 // Пользователь
 //
 model User {
@@ -20,10 +20,11 @@ model User {
   phone    String?
   role     UserRole @default(USER)
 
+  // Софт-делит для восстановления аккаунтов
+  deletedAt DateTime?
+
   cartItems Cart[]
-  favorites Favorite[]
   orders    Order[]
-  reviews   Review[]
   stores    Store[]
 
   createdAt DateTime @default(now())
@@ -42,6 +43,11 @@ model Store {
   logo        String?
   address     String?
   region      String?
+
+  // Верификация и управление магазином
+  isVerified Boolean  @default(false) // Проверенный продавец
+  isActive   Boolean  @default(true) // Активен ли магазин
+  rating     Decimal? @db.Decimal(3, 2) // Средний рейтинг (0.00 - 5.00)
 
   ownerId Int
   owner   User @relation(fields: [ownerId], references: [id])
@@ -73,29 +79,23 @@ model Category {
   @@map("categories")
 }
 
-model Brand {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  logoUrl  String?
-  products Product[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("brands")
-}
-
+//
+// Продукт
+//
 model Product {
-  id         Int  @id @default(autoincrement())
+  id         Int @id @default(autoincrement())
   storeId    Int
   categoryId Int
-  brandId    Int?
 
   title       String
   description String
   images      String[]
-  price       Decimal  @db.Decimal(10, 2)
-  oldPrice    Decimal? @db.Decimal(10, 2)
+
+  // ⚡ УПРОЩЕНО: brandName вместо отдельной таблицы Brand
+  brandName String?
+
+  price    Decimal  @db.Decimal(10, 2)
+  oldPrice Decimal? @db.Decimal(10, 2)
 
   stockCount Int      @default(0)
   tags       String[]
@@ -105,11 +105,8 @@ model Product {
 
   store    Store    @relation(fields: [storeId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
-  brand    Brand?   @relation(fields: [brandId], references: [id])
 
   cartItems  Cart[]
-  favorites  Favorite[]
-  reviews    Review[]
   orderItems OrderItem[]
 
   createdAt DateTime @default(now())
@@ -139,22 +136,6 @@ model Cart {
 }
 
 //
-// Избранное
-//
-model Favorite {
-  userId    Int
-  productId Int
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, productId])
-  @@map("favorites")
-}
-
-//
 // Заказы
 //
 model Order {
@@ -167,10 +148,17 @@ model Order {
   deliveryPhone   String
   deliveryAddress String
 
+  // Комиссия платформы (важно для маркетплейса!)
+  platformFee Decimal? @db.Decimal(10, 2)
+
   user  User        @relation(fields: [userId], references: [id])
   items OrderItem[]
 
+  // Связь с платежом
+  payment Payment?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("orders")
 }
@@ -189,37 +177,47 @@ model OrderItem {
 }
 
 //
-// Отзывы
+// Платежи (критично для e-commerce!)
 //
-model Review {
-  id        Int     @id @default(autoincrement())
-  userId    Int
-  productId Int
-  rating    Int
-  comment   String?
+model Payment {
+  id            Int           @id @default(autoincrement())
+  orderId       Int           @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String // "card", "cash_on_delivery", "bank_transfer"
 
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  // Опциональные поля для интеграции с платежными системами
+  transactionId String? // ID транзакции от платежной системы
+  paymentData   Json? // Дополнительные данные
+
+  order Order @relation(fields: [orderId], references: [id])
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([userId, productId])
-  @@map("reviews")
+  @@map("payments")
 }
 
 //
 // Роли пользователей
 //
 enum UserRole {
-  ADMIN
-  OWNER
-  USER
+  ADMIN // Администратор платформы
+  OWNER // Владелец магазина
+  USER // Обычный покупатель
 }
 
 enum OrderStatus {
-  PENDING
-  PAID
-  SHIPPED
-  COMPLETED
-  CANCELED
+  PENDING // Ожидает оплаты
+  PAID // Оплачен
+  SHIPPED // Отправлен
+  COMPLETED // Завершен
+  CANCELED // Отменен
+}
+
+enum PaymentStatus {
+  PENDING // Ожидает оплаты
+  COMPLETED // Оплачен
+  FAILED // Ошибка оплаты
+  REFUNDED // Возврат средств
 }

@@ -10,29 +10,34 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post(
   "/create-product",
   authMiddleware,
-  upload.array("files"),
-  productControllers.createProduct
+  upload.array("images", 6),
+  productControllers.createProduct,
 );
+
 //! get
 router.get("/products", authMiddleware, productControllers.getProduct);
 router.get("/products-for-user", productControllers.getAllProductsForUsers);
+router.get(
+  "/products-by-category/:categoryId",
+  productControllers.getProductsByCategory,
+);
 //! get-by-id
 router.get(
   "/product-for-user/:id",
   authMiddleware,
-  productControllers.getProductById
+  productControllers.getProductById,
 );
 //!  update
 router.patch(
   "/product-update/:id",
   authMiddleware,
-  productControllers.updateProduct
+  productControllers.updateProduct,
 );
 //! delete
 router.delete(
   "/product-delete/:id",
   authMiddleware,
-  productControllers.deleteProduct
+  productControllers.deleteProduct,
 );
 
 export default router;
