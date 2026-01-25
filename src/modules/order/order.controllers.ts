@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../../prisma";
+import { AuthRequest } from "../../middleware/auth.middleware";
 
 const sendOrder = async (req: Request, res: Response) => {
   try {
@@ -80,4 +81,34 @@ const deleteAllCart = async (req: Request, res: Response) => {
   }
 };
 
-export { sendOrder, getCart, deleteAllCart };
+const deleteById = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { productId } = req.params;
+
+    if (!productId) {
+      return res.status(400).json({ message: "Не указан productId" });
+    }
+
+    const result = await prisma.cart.deleteMany({
+      where: {
+        userId,
+        productId: Number(productId),
+      },
+    });
+
+    if (result.count === 0) {
+      return res.status(404).json({ message: "Товар не найден в корзине" });
+    }
+
+    return res.status(200).json({
+      message: "Товар удалён из корзины",
+      deletedCount: result.count,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export { sendOrder, getCart, deleteAllCart, deleteById };

@@ -21,6 +21,10 @@ router.get(
   "/products-by-category/:categoryId",
   productControllers.getProductsByCategory,
 );
+router.get(
+  `/similar-products/:categoryId`,
+  productControllers.getSimilarProducts,
+);
 //! get-by-id
 router.get(
   "/product-for-user/:id",

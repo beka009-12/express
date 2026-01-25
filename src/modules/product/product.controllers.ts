@@ -470,6 +470,39 @@ const getProductsByCategory = async (req: Request, res: Response) => {
   }
 };
 
+const getSimilarProducts = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Не указан id товара" });
+    }
+
+    const currentProduct = await prisma.product.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!currentProduct) {
+      return res.status(404).json({ message: "Товар не найден" });
+    }
+
+    const similarProducts = await prisma.product.findMany({
+      where: {
+        categoryId: currentProduct.categoryId,
+        id: { not: currentProduct.id },
+      },
+      take: 6,
+    });
+
+    return res.status(200).json(similarProducts);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Ошибка сервера при получении похожих товаров" });
+  }
+};
+
 export {
   createProduct,
   getProduct,
@@ -478,4 +511,5 @@ export {
   updateProduct,
   getAllProductsForUsers,
   getProductsByCategory,
+  getSimilarProducts,
 };
