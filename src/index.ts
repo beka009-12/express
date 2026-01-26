@@ -2,7 +2,7 @@ import { buildServer } from "./app";
 
 const server = buildServer();
 const start = async () => {
-  const PORT = process.env.PORT || 5003;
+  const PORT = process.env.PORT || 5004;
   try {
     server.listen(
       {
@@ -12,7 +12,7 @@ const start = async () => {
       () => {
         console.log(`${new Date()}`);
         console.log("server running at: http://localhost:" + PORT);
-      }
+      },
     );
   } catch (error) {
     console.error(error);

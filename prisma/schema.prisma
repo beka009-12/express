@@ -12,20 +12,19 @@ datasource db {
 // Пользователь
 //
 model User {
-  id       Int      @id @default(autoincrement())
-  email    String   @unique
-  password String
-  name     String?
-  avatar   String?
-  phone    String?
-  role     UserRole @default(USER)
-
-  // Софт-делит для восстановления аккаунтов
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  name      String?
+  avatar    String?
+  phone     String?
+  role      UserRole  @default(USER)
   deletedAt DateTime?
 
   cartItems Cart[]
   orders    Order[]
   stores    Store[]
+  favorites Favorite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -37,24 +36,23 @@ model User {
 // Магазин
 //
 model Store {
-  id          Int     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
   description String?
   logo        String?
   address     String?
   region      String?
-
-  // Верификация и управление магазином
-  isVerified Boolean  @default(false) // Проверенный продавец
-  isActive   Boolean  @default(true) // Активен ли магазин
-  rating     Decimal? @db.Decimal(3, 2) // Средний рейтинг (0.00 - 5.00)
+  isVerified  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  rating      Decimal? @db.Decimal(3, 2)
 
   ownerId Int
-  owner   User @relation(fields: [ownerId], references: [id])
+  owner   User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("stores")
 }
@@ -67,7 +65,7 @@ model Category {
   name     String
   parentId Int?
 
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("CategoryTree")
 
   products Product[]
@@ -91,7 +89,6 @@ model Product {
   description String
   images      String[]
 
-  // ⚡ УПРОЩЕНО: brandName вместо отдельной таблицы Brand
   brandName String?
 
   price    Decimal  @db.Decimal(10, 2)
@@ -103,11 +100,12 @@ model Product {
   isActive   Boolean   @default(true)
   archivedAt DateTime?
 
-  store    Store    @relation(fields: [storeId], references: [id])
-  category Category @relation(fields: [categoryId], references: [id])
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   cartItems  Cart[]
   orderItems OrderItem[]
+  favorites  Favorite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -126,8 +124,8 @@ model Cart {
   productId Int
   quantity  Int @default(1)
 
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -148,13 +146,10 @@ model Order {
   deliveryPhone   String
   deliveryAddress String
 
-  // Комиссия платформы (важно для маркетплейса!)
   platformFee Decimal? @db.Decimal(10, 2)
 
-  user  User        @relation(fields: [userId], references: [id])
-  items OrderItem[]
-
-  // Связь с платежом
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items   OrderItem[]
   payment Payment?
 
   createdAt DateTime @default(now())
@@ -163,6 +158,24 @@ model Order {
   @@map("orders")
 }
 
+//
+// Избранное
+//
+model Favorite {
+  id        Int @id @default(autoincrement())
+  userId    Int
+  productId Int
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("favorites")
+}
+
+//
+// Позиции заказа
+//
 model OrderItem {
   id        Int     @id @default(autoincrement())
   orderId   Int
@@ -170,14 +183,14 @@ model OrderItem {
   quantity  Int
   price     Decimal @db.Decimal(10, 2)
 
-  order   Order   @relation(fields: [orderId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("order_items")
 }
 
 //
-// Платежи (критично для e-commerce!)
+// Платежи
 //
 model Payment {
   id            Int           @id @default(autoincrement())
@@ -186,11 +199,10 @@ model Payment {
   status        PaymentStatus @default(PENDING)
   paymentMethod String // "card", "cash_on_delivery", "bank_transfer"
 
-  // Опциональные поля для интеграции с платежными системами
-  transactionId String? // ID транзакции от платежной системы
-  paymentData   Json? // Дополнительные данные
+  transactionId String?
+  paymentData   Json?
 
-  order Order @relation(fields: [orderId], references: [id])
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -202,22 +214,22 @@ model Payment {
 // Роли пользователей
 //
 enum UserRole {
-  ADMIN // Администратор платформы
-  OWNER // Владелец магазина
-  USER // Обычный покупатель
+  ADMIN
+  OWNER
+  USER
 }
 
 enum OrderStatus {
-  PENDING // Ожидает оплаты
-  PAID // Оплачен
-  SHIPPED // Отправлен
-  COMPLETED // Завершен
-  CANCELED // Отменен
+  PENDING
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELED
 }
 
 enum PaymentStatus {
-  PENDING // Ожидает оплаты
-  COMPLETED // Оплачен
-  FAILED // Ошибка оплаты
-  REFUNDED // Возврат средств
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
 }

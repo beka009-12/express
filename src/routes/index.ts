@@ -6,6 +6,7 @@ import product from "../modules/product/product.routes";
 import file from "../modules/upload/upload.routes";
 import categoryRoutes from "../modules/category/category.routes";
 import order from "../modules/order/order.routes";
+import favorite from "../modules/favorite/favorite.routes";
 
 const configCors = {
   origin: [
@@ -24,5 +25,6 @@ router.use("/commodity", cors(configCors), product);
 router.use("/upload", cors(configCors), file);
 router.use("/category", cors(configCors), categoryRoutes);
 router.use("/order", cors(configCors), order);
+router.use("/favorite", cors(configCors), favorite);
 
 export default router;
