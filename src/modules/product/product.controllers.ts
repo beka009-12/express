@@ -302,19 +302,18 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
 
 // ✅ GET ALL PRODUCTS FOR USERS (with filters)
 const getAllProductsForUsers = async (req: Request, res: Response) => {
+  const {
+    page = "1",
+    limit = "20",
+    categoryId,
+    brandName,
+    minPrice,
+    maxPrice,
+    search,
+    sort = "createdAt",
+    order = "desc",
+  } = req.query;
   try {
-    const {
-      page = "1",
-      limit = "20",
-      categoryId,
-      brandName,
-      minPrice,
-      maxPrice,
-      search,
-      sort = "createdAt",
-      order = "desc",
-    } = req.query;
-
     const filters: any = {
       isActive: true,
       archivedAt: null,
@@ -345,7 +344,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
     if (search) {
       filters.OR = [
         { title: { contains: String(search), mode: "insensitive" } },
-        { description: { contains: String(search), mode: "insensitive" } },
         { tags: { has: String(search) } },
       ];
     }

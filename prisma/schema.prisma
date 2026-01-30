@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 //
@@ -54,6 +53,7 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([ownerId])
   @@map("stores")
 }
 
@@ -100,7 +100,7 @@ model Product {
   isActive   Boolean   @default(true)
   archivedAt DateTime?
 
-  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   cartItems  Cart[]
@@ -112,6 +112,7 @@ model Product {
 
   @@index([categoryId])
   @@index([price])
+  @@index([brandName])
   @@map("products")
 }
 
@@ -155,6 +156,7 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([userId])
   @@map("orders")
 }
 
