@@ -36,7 +36,7 @@ const signUpSeller = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, role: user.role, jti: uuidv4() },
       process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     return res.status(201).json({
@@ -69,7 +69,7 @@ const signInSeller = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { id: user.id, role: user.role, jti: uuidv4() },
       process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     return res.status(200).json({
@@ -203,12 +203,43 @@ const uploadStoreLogo = async (req: Request, res: Response) => {
 const getMyStore = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+    if (!userId) {
+      return res.status(401).json({ message: "Не авторизован" });
+    }
 
-    const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+    const store = await prisma.store.findFirst({
+      where: { ownerId: userId },
+    });
 
-    if (!store) return res.status(404).json({ message: "Магазин не найден" });
-    return res.status(200).json({ store });
+    if (!store) {
+      return res.status(404).json({ message: "Магазин не найден" });
+    }
+
+    return res.status(200).json({
+      message: "Магазин найден",
+      store,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+const getAllStores = async (req: Request, res: Response) => {
+  try {
+    const stores = await prisma.store.findMany({
+      include: {
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      message: "Все магазины найдены",
+      stores,
+    });
   } catch (error) {
     return res.status(500).json({ message: "Ошибка сервера" });
   }
@@ -222,4 +253,5 @@ export {
   logautSeller,
   uploadStoreLogo,
   getMyStore,
+  getAllStores,
 };

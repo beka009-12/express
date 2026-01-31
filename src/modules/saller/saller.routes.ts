@@ -18,8 +18,9 @@ router.post("/create-store", authMiddleware, sallerRouter.createStore);
 router.post(
   "/upload-store-logo",
   upload.single("file"),
-  sallerRouter.uploadStoreLogo
+  sallerRouter.uploadStoreLogo,
 );
 router.get("/my-store", authMiddleware, sallerRouter.getMyStore);
+router.get("/all-stores", sallerRouter.getAllStores);
 
 export default router;
