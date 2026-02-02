@@ -271,22 +271,13 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
           oldPrice: oldPrice ? Number(oldPrice) : null,
         }),
         ...(stockCount !== undefined && { stockCount: Number(stockCount) }),
-        ...(tags && { tags: JSON.parse(tags) }),
+        ...(tags && {
+          tags: Array.isArray(tags) ? tags : JSON.parse(tags),
+        }),
         ...(categoryId && { categoryId: Number(categoryId) }),
         ...(brandName !== undefined && { brandName: brandName || null }),
-        // Автоматически архивируем если товар закончился
         archivedAt: stockCount === 0 ? new Date() : null,
         isActive: stockCount > 0,
-      },
-      include: {
-        category: true,
-        store: {
-          select: {
-            id: true,
-            name: true,
-            logo: true,
-          },
-        },
       },
     });
 
@@ -340,7 +331,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
       };
     }
 
-    // Поиск по названию и описанию
     if (search) {
       filters.OR = [
         { title: { contains: String(search), mode: "insensitive" } },
@@ -348,7 +338,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
       ];
     }
 
-    // Подсчет общего количества
     const total = await prisma.product.count({ where: filters });
 
     // Получение товаров
