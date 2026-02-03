@@ -17,10 +17,12 @@ router.get("/saller-profile", authMiddleware, sallerRouter.getProfileSaller);
 router.post("/create-store", authMiddleware, sallerRouter.createStore);
 router.post(
   "/upload-store-logo",
+  authMiddleware,
   upload.single("file"),
   sallerRouter.uploadStoreLogo,
 );
 router.get("/my-store", authMiddleware, sallerRouter.getMyStore);
 router.get("/all-stores", sallerRouter.getAllStores);
+router.get("/detail-store/:id", sallerRouter.getDetailStore);
 
 export default router;

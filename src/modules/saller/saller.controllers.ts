@@ -241,7 +241,43 @@ const getAllStores = async (req: Request, res: Response) => {
       stores,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Ошибка сервера" });
+    return res.status(500).json({ message: "Ошибка сервера", error });
+  }
+};
+
+const getDetailStore = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const store = await prisma.store.findUnique({
+      where: { id: Number(id) },
+      include: {
+        products: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
+    });
+
+    if (!store) {
+      return res.status(404).json({ message: "Магазин не найден" });
+    }
+
+    return res.status(200).json({
+      message: "Магазин найден",
+      store,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Ошибка сервера",
+      error,
+    });
   }
 };
 
@@ -249,9 +285,11 @@ export {
   signUpSeller,
   getProfileSaller,
   signInSeller,
-  createStore,
   logautSeller,
+  // ! STORE
+  createStore,
   uploadStoreLogo,
   getMyStore,
   getAllStores,
+  getDetailStore,
 };
