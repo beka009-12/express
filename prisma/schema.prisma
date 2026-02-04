@@ -45,7 +45,7 @@ model Store {
   isActive    Boolean  @default(true)
   rating      Decimal? @db.Decimal(3, 2)
 
-  ownerId Int  
+  ownerId Int
   owner   User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   products Product[]
@@ -100,7 +100,7 @@ model Product {
   isActive   Boolean   @default(true)
   archivedAt DateTime?
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   cartItems  Cart[]
