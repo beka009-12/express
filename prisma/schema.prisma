@@ -64,7 +64,7 @@ model Store {
 model Category {
   id       Int    @id @default(autoincrement())
   name     String
-  parentId Int?
+  parentId Int
 
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("CategoryTree")
