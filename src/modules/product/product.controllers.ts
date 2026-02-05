@@ -24,7 +24,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       tags,
     } = req.body;
 
-    // Валидация
     if (!req.user?.id) {
       return res.status(401).json({ message: "Не авторизован" });
     }
@@ -37,7 +36,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Добавьте хотя бы одно фото" });
     }
 
-    // Проверка магазина
     const store = await prisma.store.findFirst({
       where: { ownerId: req.user.id },
     });
@@ -46,7 +44,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Сначала создайте магазин" });
     }
 
-    // Проверка категории
     const category = await prisma.category.findUnique({
       where: { id: Number(categoryId) },
     });
@@ -55,7 +52,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Категория не найдена" });
     }
 
-    // Загрузка изображений
     const uploadedUrls: string[] = [];
 
     for (const file of files) {
