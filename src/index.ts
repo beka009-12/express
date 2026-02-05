@@ -1,21 +1,21 @@
 import { buildServer } from "./app";
 
 const server = buildServer();
+
 const start = async () => {
-  const PORT = process.env.PORT || 5004;
   try {
-    server.listen(
-      {
-        port: PORT,
-        host: "0.0.0.0",
-      },
-      () => {
-        console.log(`${new Date()}`);
-        console.log("server running at: http://localhost:" + PORT);
-      },
-    );
-  } catch (error) {
-    console.error(error);
+    const PORT = Number(process.env.PORT) || 5004;
+
+    await server.listen({
+      port: PORT,
+      host: "0.0.0.0",
+    });
+
+    console.log(`🚀 Server running on port ${PORT}`);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
   }
 };
+
 start();
