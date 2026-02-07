@@ -1,16 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../prisma";
 
-function getIdFromParams(req: Request): number | null {
-  const { id } = req.params;
-  if (!id) return null;
-
-  const idStr = Array.isArray(id) ? id[0] : id;
-
-  const parsed = parseInt(idStr, 10);
-  return isNaN(parsed) ? null : parsed;
-}
-
+// Получить все категории (плоский список)
 const getCategories = async (req: Request, res: Response) => {
   try {
     const categories = await prisma.category.findMany({
@@ -39,8 +30,10 @@ const getCategories = async (req: Request, res: Response) => {
   }
 };
 
+// Получить дерево категорий (иерархическая структура)
 const getCategoriesTree = async (req: Request, res: Response) => {
   try {
+    // Получаем все категории
     const allCategories = await prisma.category.findMany({
       include: {
         _count: {
@@ -50,15 +43,18 @@ const getCategoriesTree = async (req: Request, res: Response) => {
       orderBy: { name: "asc" },
     });
 
+    // Строим дерево вручную
     const categoryMap = new Map<number, any>();
     const rootCategories: any[] = [];
 
+    // Создаем мапу всех категорий
     allCategories.forEach((cat) => {
       categoryMap.set(cat.id, { ...cat, children: [] });
     });
 
+    // Строим дерево
     allCategories.forEach((cat) => {
-      const category = categoryMap.get(cat.id)!;
+      const category = categoryMap.get(cat.id);
       if (cat.parentId === null) {
         rootCategories.push(category);
       } else {
@@ -78,25 +74,22 @@ const getCategoriesTree = async (req: Request, res: Response) => {
   }
 };
 
+// Создать категорию
 const createCategory = async (req: Request, res: Response) => {
   try {
     const { name, parentId } = req.body;
 
-    if (!name || typeof name !== "string" || name.trim() === "") {
+    // Валидация
+    if (!name || name.trim() === "") {
       return res
         .status(400)
         .json({ message: "Название категории обязательно" });
     }
 
-    let parsedParentId: number | null = null;
-    if (parentId !== undefined && parentId !== null) {
-      parsedParentId = Number(parentId);
-      if (isNaN(parsedParentId)) {
-        return res.status(400).json({ message: "Некорректный parentId" });
-      }
-
+    // Если есть parentId, проверяем существует ли родительская категория
+    if (parentId) {
       const parentExists = await prisma.category.findUnique({
-        where: { id: parsedParentId },
+        where: { id: parentId },
       });
 
       if (!parentExists) {
@@ -106,11 +99,12 @@ const createCategory = async (req: Request, res: Response) => {
       }
     }
 
+    // Проверяем уникальность (name + parentId)
     const existingCategory = await prisma.category.findUnique({
       where: {
         name_parentId: {
           name: name.trim(),
-          parentId: parsedParentId! ?? null,
+          parentId: parentId || null,
         },
       },
     });
@@ -121,10 +115,11 @@ const createCategory = async (req: Request, res: Response) => {
       });
     }
 
+    // Создаем категорию
     const category = await prisma.category.create({
       data: {
         name: name.trim(),
-        parentId: parsedParentId! ?? null,
+        parentId: parentId || null,
       },
       include: {
         parent: true,
@@ -132,67 +127,54 @@ const createCategory = async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json({ message: "Категория успешно создана", category });
+    res.status(201).json({
+      message: "Категория успешно создана",
+      category,
+    });
   } catch (error) {
     console.error("Ошибка при создании категории:", error);
     res.status(500).json({ message: "Ошибка сервера при создании категории" });
   }
 };
 
+// Обновить категорию
 const updateCategory = async (req: Request, res: Response) => {
   try {
-    const id = getIdFromParams(req);
-    if (id === null) {
-      return res
-        .status(400)
-        .json({ message: "Некорректный или отсутствующий id" });
-    }
-
+    const { id } = req.params;
     const { name, parentId } = req.body;
 
+    // Проверяем существование категории
     const existingCategory = await prisma.category.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
     });
 
     if (!existingCategory) {
       return res.status(404).json({ message: "Категория не найдена" });
     }
 
-    if (parentId !== undefined && parentId === id) {
+    // Проверяем, чтобы категория не стала сама себе родителем
+    if (parentId && parseInt(id) === parentId) {
       return res.status(400).json({
         message: "Категория не может быть родителем сама себе",
       });
     }
 
-    let newParentId: number | null = existingCategory.parentId;
-    if (parentId !== undefined) {
-      if (parentId === null) {
-        newParentId = null;
-      } else {
-        const parsed = Number(parentId);
-        if (isNaN(parsed)) {
-          return res.status(400).json({ message: "Некорректный parentId" });
-        }
-        newParentId = parsed;
-
-        const isDescendant = await checkIfDescendant(id, newParentId);
-        if (isDescendant) {
-          return res.status(400).json({
-            message:
-              "Нельзя сделать дочернюю категорию родителем (циклическая зависимость)",
-          });
-        }
+    // Проверяем циклические зависимости
+    if (parentId) {
+      const isDescendant = await checkIfDescendant(parseInt(id), parentId);
+      if (isDescendant) {
+        return res.status(400).json({
+          message: "Нельзя сделать дочернюю категорию родителем",
+        });
       }
     }
 
+    // Обновляем категорию
     const updatedCategory = await prisma.category.update({
-      where: { id },
+      where: { id: parseInt(id) },
       data: {
-        name:
-          name && typeof name === "string"
-            ? name.trim()
-            : existingCategory.name,
-        parentId: newParentId! ?? null,
+        name: name?.trim() || existingCategory.name,
+        parentId: parentId !== undefined ? parentId : existingCategory.parentId,
       },
       include: {
         parent: true,
@@ -212,24 +194,24 @@ const updateCategory = async (req: Request, res: Response) => {
   }
 };
 
+// Удалить категорию
 const deleteCategory = async (req: Request, res: Response) => {
   try {
-    const id = getIdFromParams(req);
-    if (id === null) {
-      return res
-        .status(400)
-        .json({ message: "Некорректный или отсутствующий id" });
-    }
+    const { id } = req.params;
 
+    // Проверяем существование категории
     const category = await prisma.category.findUnique({
-      where: { id },
-      include: { children: true },
+      where: { id: parseInt(id) },
+      include: {
+        children: true,
+      },
     });
 
     if (!category) {
       return res.status(404).json({ message: "Категория не найдена" });
     }
 
+    // Проверяем, есть ли дочерние категории
     if (category.children.length > 0) {
       return res.status(400).json({
         message:
@@ -237,8 +219,9 @@ const deleteCategory = async (req: Request, res: Response) => {
       });
     }
 
+    // Проверяем, есть ли товары в этой категории
     const productsCount = await prisma.product.count({
-      where: { categoryId: id },
+      where: { categoryId: parseInt(id) },
     });
 
     if (productsCount > 0) {
@@ -247,29 +230,35 @@ const deleteCategory = async (req: Request, res: Response) => {
       });
     }
 
-    await prisma.category.delete({ where: { id } });
+    // Удаляем категорию
+    await prisma.category.delete({
+      where: { id: parseInt(id) },
+    });
 
-    res.status(200).json({ message: "Категория успешно удалена" });
+    res.status(200).json({
+      message: "Категория успешно удалена",
+    });
   } catch (error) {
     console.error("Ошибка при удалении категории:", error);
     res.status(500).json({ message: "Ошибка сервера при удалении категории" });
   }
 };
 
+// Вспомогательная функция для проверки циклических зависимостей
 async function checkIfDescendant(
   categoryId: number,
   potentialParentId: number,
 ): Promise<boolean> {
-  if (categoryId === potentialParentId) return true;
-
-  const parent = await prisma.category.findUnique({
+  const potentialParent = await prisma.category.findUnique({
     where: { id: potentialParentId },
-    select: { parentId: true },
+    include: { parent: true },
   });
 
-  if (!parent || parent.parentId === null) return false;
+  if (!potentialParent) return false;
+  if (potentialParent.id === categoryId) return true;
+  if (!potentialParent.parentId) return false;
 
-  return checkIfDescendant(categoryId, parent.parentId);
+  return checkIfDescendant(categoryId, potentialParent.parentId);
 }
 
 export {
