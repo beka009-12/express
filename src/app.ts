@@ -19,7 +19,7 @@ export const buildServer = () => {
     res.status(200).send({ message: info });
   });
 
-  server.use("/nest-shop", routes); // подключаем маршруты
+  server.use("/nest-shop", routes);
 
   return server;
 };

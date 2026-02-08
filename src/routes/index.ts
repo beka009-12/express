@@ -11,8 +11,7 @@ import favorite from "../modules/favorite/favorite.routes";
 const configCors = {
   origin: [
     "http://localhost:3000",
-    "https://shop-d3sl5bh7n-bekas-projects-83a573ff.vercel.app",
-    "https://seller-point.vercel.app",
+    "https://shop-elafj8ft1-bekas-projects-83a573ff.vercel.app",
     "http://localhost:3001",
   ],
 };
