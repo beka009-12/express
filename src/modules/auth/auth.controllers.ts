@@ -100,7 +100,7 @@ const getProfile = async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        orders: true, // массив заказов
+        orders: true,
       },
     });
 

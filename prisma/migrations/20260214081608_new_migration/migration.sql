@@ -4,6 +4,9 @@ CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'OWNER', 'USER');
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PAID', 'SHIPPED', 'COMPLETED', 'CANCELED');
 
+-- CreateEnum
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" SERIAL NOT NULL,
@@ -13,6 +16,7 @@ CREATE TABLE "users" (
     "avatar" TEXT,
     "phone" TEXT,
     "role" "UserRole" NOT NULL DEFAULT 'USER',
+    "deletedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -27,6 +31,9 @@ CREATE TABLE "stores" (
     "logo" TEXT,
     "address" TEXT,
     "region" TEXT,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "rating" DECIMAL(3,2),
     "ownerId" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -46,25 +53,14 @@ CREATE TABLE "categories" (
 );
 
 -- CreateTable
-CREATE TABLE "brands" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "logoUrl" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "brands_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "products" (
     "id" SERIAL NOT NULL,
     "storeId" INTEGER NOT NULL,
     "categoryId" INTEGER NOT NULL,
-    "brandId" INTEGER,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "images" TEXT[],
+    "brandName" TEXT,
     "price" DECIMAL(10,2) NOT NULL,
     "oldPrice" DECIMAL(10,2),
     "stockCount" INTEGER NOT NULL DEFAULT 0,
@@ -89,13 +85,6 @@ CREATE TABLE "cart_items" (
 );
 
 -- CreateTable
-CREATE TABLE "favorites" (
-    "userId" INTEGER NOT NULL,
-    "productId" INTEGER NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- CreateTable
 CREATE TABLE "orders" (
     "id" SERIAL NOT NULL,
     "userId" INTEGER NOT NULL,
@@ -104,9 +93,20 @@ CREATE TABLE "orders" (
     "deliveryName" TEXT NOT NULL,
     "deliveryPhone" TEXT NOT NULL,
     "deliveryAddress" TEXT NOT NULL,
+    "platformFee" DECIMAL(10,2),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "orders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "favorites" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "productId" INTEGER NOT NULL,
+
+    CONSTRAINT "favorites_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -121,25 +121,28 @@ CREATE TABLE "order_items" (
 );
 
 -- CreateTable
-CREATE TABLE "reviews" (
+CREATE TABLE "payments" (
     "id" SERIAL NOT NULL,
-    "userId" INTEGER NOT NULL,
-    "productId" INTEGER NOT NULL,
-    "rating" INTEGER NOT NULL,
-    "comment" TEXT,
+    "orderId" INTEGER NOT NULL,
+    "amount" DECIMAL(10,2) NOT NULL,
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+    "paymentMethod" TEXT NOT NULL,
+    "transactionId" TEXT,
+    "paymentData" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "reviews_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "categories_name_parentId_key" ON "categories"("name", "parentId");
+CREATE INDEX "stores_ownerId_idx" ON "stores"("ownerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "brands_name_key" ON "brands"("name");
+CREATE UNIQUE INDEX "categories_name_parentId_key" ON "categories"("name", "parentId");
 
 -- CreateIndex
 CREATE INDEX "products_categoryId_idx" ON "products"("categoryId");
@@ -148,34 +151,40 @@ CREATE INDEX "products_categoryId_idx" ON "products"("categoryId");
 CREATE INDEX "products_price_idx" ON "products"("price");
 
 -- CreateIndex
+CREATE INDEX "products_brandName_idx" ON "products"("brandName");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "cart_items_userId_productId_key" ON "cart_items"("userId", "productId");
+
+-- CreateIndex
+CREATE INDEX "orders_userId_idx" ON "orders"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "favorites_userId_productId_key" ON "favorites"("userId", "productId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "reviews_userId_productId_key" ON "reviews"("userId", "productId");
+CREATE UNIQUE INDEX "payments_orderId_key" ON "payments"("orderId");
 
 -- AddForeignKey
-ALTER TABLE "stores" ADD CONSTRAINT "stores_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "stores" ADD CONSTRAINT "stores_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "categories" ADD CONSTRAINT "categories_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "products" ADD CONSTRAINT "products_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "products" ADD CONSTRAINT "products_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "stores"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "products" ADD CONSTRAINT "products_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "products" ADD CONSTRAINT "products_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "categories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "products" ADD CONSTRAINT "products_brandId_fkey" FOREIGN KEY ("brandId") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "orders" ADD CONSTRAINT "orders_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "favorites" ADD CONSTRAINT "favorites_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -184,16 +193,10 @@ ALTER TABLE "favorites" ADD CONSTRAINT "favorites_userId_fkey" FOREIGN KEY ("use
 ALTER TABLE "favorites" ADD CONSTRAINT "favorites_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "orders" ADD CONSTRAINT "orders_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "order_items" ADD CONSTRAINT "order_items_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "order_items" ADD CONSTRAINT "order_items_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "orders"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "order_items" ADD CONSTRAINT "order_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "order_items" ADD CONSTRAINT "order_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "reviews" ADD CONSTRAINT "reviews_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "reviews" ADD CONSTRAINT "reviews_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "payments" ADD CONSTRAINT "payments_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
