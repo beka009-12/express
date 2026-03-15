@@ -36,6 +36,14 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Добавьте хотя бы одно фото" });
     }
 
+    // oldPrice — цена со скидкой, должна быть МЕНЬШЕ основной цены
+    // price = 7000 (оригинал), oldPrice = 6500 (со скидкой)
+    if (oldPrice && Number(oldPrice) >= Number(price)) {
+      return res.status(400).json({
+        message: "Цена со скидкой должна быть меньше основной цены",
+      });
+    }
+
     const store = await prisma.store.findFirst({
       where: { ownerId: req.user.id },
     });
@@ -76,7 +84,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       uploadedUrls.push(publicUrl.publicUrl);
     }
 
-    // Парсинг тегов
     let parsedTags: string[] = [];
     if (tags) {
       try {
@@ -87,7 +94,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Создание продукта
     const product = await prisma.product.create({
       data: {
         storeId: store.id,
@@ -96,8 +102,8 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         title: title.trim(),
         description: description.trim(),
         images: uploadedUrls,
-        price: Number(price),
-        oldPrice: oldPrice ? Number(oldPrice) : null,
+        price: Number(price), // оригинальная цена: 7000
+        oldPrice: oldPrice ? Number(oldPrice) : null, // цена со скидкой: 6500
         stockCount: stockCount ? Number(stockCount) : 0,
         tags: parsedTags,
         isActive: true,
@@ -143,9 +149,7 @@ const getProduct = async (req: AuthRequest, res: Response) => {
 
     const products = await prisma.product.findMany({
       where: { storeId: store.id },
-      include: {
-        category: true,
-      },
+      include: { category: true },
       orderBy: { createdAt: "desc" },
     });
 
@@ -207,7 +211,6 @@ const deleteProduct = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: "Нет доступа для удаления" });
     }
 
-    // Удаляем изображения из Supabase
     if (product.images.length > 0) {
       for (const imageUrl of product.images) {
         try {
@@ -256,15 +259,31 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
     if (product.store.ownerId !== req.user.id)
       return res.status(403).json({ message: "Нет доступа" });
 
-    // Обновляем продукт
+    // Считаем актуальную цену для валидации
+    const currentPrice = price ? Number(price) : Number(product.price);
+
+    // oldPrice — цена со скидкой, должна быть МЕНЬШЕ основной цены
+    if (oldPrice !== undefined && oldPrice !== null && oldPrice !== "") {
+      if (Number(oldPrice) >= currentPrice) {
+        return res.status(400).json({
+          message: "Цена со скидкой должна быть меньше основной цены",
+        });
+      }
+    }
+
+    const currentStockCount =
+      stockCount !== undefined ? Number(stockCount) : product.stockCount;
+
     const updated = await prisma.product.update({
       where: { id: product.id },
       data: {
         ...(title && { title }),
         ...(description && { description }),
         ...(price && { price: Number(price) }),
+        // oldPrice = null убирает скидку, oldPrice < price — показывает скидку
         ...(oldPrice !== undefined && {
-          oldPrice: oldPrice ? Number(oldPrice) : null,
+          oldPrice:
+            oldPrice !== null && oldPrice !== "" ? Number(oldPrice) : null,
         }),
         ...(stockCount !== undefined && { stockCount: Number(stockCount) }),
         ...(tags && {
@@ -272,8 +291,8 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
         }),
         ...(categoryId && { categoryId: Number(categoryId) }),
         ...(brandName !== undefined && { brandName: brandName || null }),
-        archivedAt: stockCount === 0 ? new Date() : null,
-        isActive: stockCount > 0,
+        archivedAt: currentStockCount === 0 ? new Date() : null,
+        isActive: currentStockCount > 0,
       },
     });
 
@@ -300,18 +319,17 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
     sort = "createdAt",
     order = "desc",
   } = req.query;
+
   try {
     const filters: any = {
       isActive: true,
       archivedAt: null,
     };
 
-    // Фильтр по категории
     if (categoryId) {
       filters.categoryId = Number(categoryId);
     }
 
-    // Фильтр по бренду
     if (brandName) {
       filters.brandName = {
         contains: String(brandName),
@@ -319,7 +337,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
       };
     }
 
-    // Фильтр по цене
     if (minPrice || maxPrice) {
       filters.price = {
         ...(minPrice && { gte: Number(minPrice) }),
@@ -336,7 +353,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
 
     const total = await prisma.product.count({ where: filters });
 
-    // Получение товаров
     const products = await prisma.product.findMany({
       where: filters,
       skip: (+page - 1) * +limit,
@@ -377,14 +393,11 @@ const getProductsByCategory = async (req: Request, res: Response) => {
     const { categoryId } = req.params;
     const { page = "1", limit = "20" } = req.query;
 
-    // Получаем категорию и все её подкатегории
     const category = await prisma.category.findUnique({
       where: { id: Number(categoryId) },
       include: {
         children: {
-          include: {
-            children: true,
-          },
+          include: { children: true },
         },
       },
     });
@@ -393,7 +406,6 @@ const getProductsByCategory = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Категория не найдена" });
     }
 
-    // Собираем ID всех подкатегорий
     const getAllCategoryIds = (cat: any): number[] => {
       const ids = [cat.id];
       if (cat.children) {
@@ -406,7 +418,6 @@ const getProductsByCategory = async (req: Request, res: Response) => {
 
     const categoryIds = getAllCategoryIds(category);
 
-    // Получаем товары из всех категорий
     const products = await prisma.product.findMany({
       where: {
         categoryId: { in: categoryIds },
