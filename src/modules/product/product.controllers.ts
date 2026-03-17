@@ -19,7 +19,7 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       title,
       description,
       price,
-      oldPrice,
+      newPrice,
       stockCount,
       tags,
     } = req.body;
@@ -36,11 +36,11 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Добавьте хотя бы одно фото" });
     }
 
-    // oldPrice — цена со скидкой, должна быть МЕНЬШЕ основной цены
-    // price = 7000 (оригинал), oldPrice = 6500 (со скидкой)
-    if (oldPrice && Number(oldPrice) >= Number(price)) {
+    // ЛОГИКА: newPrice (скидка) должна быть МЕНЬШЕ чем price (базовая)
+    if (newPrice && Number(newPrice) >= Number(price)) {
       return res.status(400).json({
-        message: "Цена со скидкой должна быть меньше основной цены",
+        message:
+          "Цена со скидкой (newPrice) должна быть меньше основной цены (price)",
       });
     }
 
@@ -61,10 +61,8 @@ const createProduct = async (req: AuthRequest, res: Response) => {
     }
 
     const uploadedUrls: string[] = [];
-
     for (const file of files) {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.originalname}`;
-
       const { data, error } = await supabase.storage
         .from("product-image")
         .upload(`uploads/${fileName}`, file.buffer, {
@@ -72,10 +70,7 @@ const createProduct = async (req: AuthRequest, res: Response) => {
           upsert: false,
         });
 
-      if (error) {
-        console.error("Ошибка загрузки файла:", error);
-        throw new Error(`Ошибка загрузки изображения: ${error.message}`);
-      }
+      if (error) throw new Error(`Ошибка загрузки: ${error.message}`);
 
       const { data: publicUrl } = supabase.storage
         .from("product-image")
@@ -87,9 +82,8 @@ const createProduct = async (req: AuthRequest, res: Response) => {
     let parsedTags: string[] = [];
     if (tags) {
       try {
-        parsedTags = JSON.parse(tags);
+        parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
       } catch (e) {
-        console.error("Ошибка парсинга тегов:", e);
         parsedTags = [];
       }
     }
@@ -102,35 +96,20 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         title: title.trim(),
         description: description.trim(),
         images: uploadedUrls,
-        price: Number(price), // оригинальная цена: 7000
-        oldPrice: oldPrice ? Number(oldPrice) : null, // цена со скидкой: 6500
+        price: Number(price),
+        newPrice: newPrice ? Number(newPrice) : null,
         stockCount: stockCount ? Number(stockCount) : 0,
         tags: parsedTags,
         isActive: true,
       },
-      include: {
-        category: true,
-        store: {
-          select: {
-            id: true,
-            name: true,
-            logo: true,
-            isVerified: true,
-            rating: true,
-          },
-        },
-      },
+      include: { category: true, store: true },
     });
 
-    res.status(201).json({
-      message: "Товар успешно создан",
-      product,
-    });
+    res.status(201).json({ message: "Товар создан", product });
   } catch (e) {
-    console.error("Ошибка создания товара:", e);
     res.status(500).json({
       message: "Ошибка создания товара",
-      error: e instanceof Error ? e.message : "Неизвестная ошибка",
+      error: e instanceof Error ? e.message : "Ошибка",
     });
   }
 };
@@ -239,7 +218,7 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
       title,
       description,
       price,
-      oldPrice,
+      newPrice,
       stockCount,
       tags,
       categoryId,
@@ -255,20 +234,24 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
     });
 
     if (!product) return res.status(404).json({ message: "Товар не найден" });
-
     if (product.store.ownerId !== req.user.id)
       return res.status(403).json({ message: "Нет доступа" });
 
-    // Считаем актуальную цену для валидации
-    const currentPrice = price ? Number(price) : Number(product.price);
+    // Валидация цен: сравниваем новую цену с тем, что пришло или что уже есть в базе
+    const effectivePrice = price ? Number(price) : Number(product.price);
+    const effectiveNewPrice =
+      newPrice !== undefined
+        ? newPrice === null
+          ? null
+          : Number(newPrice)
+        : product.newPrice
+          ? Number(product.newPrice)
+          : null;
 
-    // oldPrice — цена со скидкой, должна быть МЕНЬШЕ основной цены
-    if (oldPrice !== undefined && oldPrice !== null && oldPrice !== "") {
-      if (Number(oldPrice) >= currentPrice) {
-        return res.status(400).json({
-          message: "Цена со скидкой должна быть меньше основной цены",
-        });
-      }
+    if (effectiveNewPrice !== null && effectiveNewPrice >= effectivePrice) {
+      return res
+        .status(400)
+        .json({ message: "Цена со скидкой должна быть меньше основной" });
     }
 
     const currentStockCount =
@@ -280,15 +263,12 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
         ...(title && { title }),
         ...(description && { description }),
         ...(price && { price: Number(price) }),
-        // oldPrice = null убирает скидку, oldPrice < price — показывает скидку
-        ...(oldPrice !== undefined && {
-          oldPrice:
-            oldPrice !== null && oldPrice !== "" ? Number(oldPrice) : null,
+        ...(newPrice !== undefined && {
+          newPrice:
+            newPrice !== null && newPrice !== "" ? Number(newPrice) : null,
         }),
         ...(stockCount !== undefined && { stockCount: Number(stockCount) }),
-        ...(tags && {
-          tags: Array.isArray(tags) ? tags : JSON.parse(tags),
-        }),
+        ...(tags && { tags: Array.isArray(tags) ? tags : JSON.parse(tags) }),
         ...(categoryId && { categoryId: Number(categoryId) }),
         ...(brandName !== undefined && { brandName: brandName || null }),
         archivedAt: currentStockCount === 0 ? new Date() : null,
@@ -296,13 +276,9 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json({
-      message: "Товар обновлён",
-      product: updated,
-    });
+    res.json({ message: "Товар обновлён", product: updated });
   } catch (error) {
-    console.error("Ошибка обновления товара:", error);
-    res.status(500).json({ message: "Ошибка сервера" });
+    res.status(500).json({ message: "Ошибка обновления" });
   }
 };
 
@@ -321,27 +297,30 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
   } = req.query;
 
   try {
-    const filters: any = {
-      isActive: true,
-      archivedAt: null,
-    };
+    const filters: any = { isActive: true, archivedAt: null };
 
-    if (categoryId) {
-      filters.categoryId = Number(categoryId);
-    }
-
-    if (brandName) {
-      filters.brandName = {
-        contains: String(brandName),
-        mode: "insensitive",
-      };
-    }
+    if (categoryId) filters.categoryId = Number(categoryId);
+    if (brandName)
+      filters.brandName = { contains: String(brandName), mode: "insensitive" };
 
     if (minPrice || maxPrice) {
-      filters.price = {
-        ...(minPrice && { gte: Number(minPrice) }),
-        ...(maxPrice && { lte: Number(maxPrice) }),
-      };
+      const min = minPrice ? Number(minPrice) : 0;
+      const max = maxPrice ? Number(maxPrice) : 9999999;
+
+      filters.AND = [
+        {
+          OR: [
+            {
+              AND: [
+                { newPrice: { not: null } },
+                { newPrice: { gte: min, lte: max } },
+              ],
+            },
+            // Случай 2: Скидки нет — ищем по базовой price
+            { AND: [{ newPrice: null }, { price: { gte: min, lte: max } }] },
+          ],
+        },
+      ];
     }
 
     if (search) {
@@ -352,37 +331,19 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
     }
 
     const total = await prisma.product.count({ where: filters });
-
     const products = await prisma.product.findMany({
       where: filters,
       skip: (+page - 1) * +limit,
       take: +limit,
       orderBy: { [String(sort)]: order },
-      include: {
-        category: true,
-        store: {
-          select: {
-            id: true,
-            name: true,
-            logo: true,
-            isVerified: true,
-            rating: true,
-          },
-        },
-      },
+      include: { category: true, store: true },
     });
 
     res.json({
       products,
-      pagination: {
-        total,
-        page: +page,
-        limit: +limit,
-        totalPages: Math.ceil(total / +limit),
-      },
+      pagination: { total, page: +page, totalPages: Math.ceil(total / +limit) },
     });
   } catch (error) {
-    console.error("Ошибка получения товаров:", error);
     res.status(500).json({ message: "Ошибка сервера" });
   }
 };
