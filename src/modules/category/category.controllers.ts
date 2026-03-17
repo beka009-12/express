@@ -106,14 +106,18 @@ const createCategory = async (req: Request, res: Response) => {
       }
     }
 
-    const existingCategory = await prisma.category.findUnique({
+    const existingCategory = await prisma.category.findFirst({
       where: {
-        name_parentId: {
-          name: name.trim(),
-          parentId: parsedParentId! ?? null,
-        },
+        name: name.trim(),
+        parentId: parsedParentId,
       },
     });
+
+    if (existingCategory) {
+      return res.status(409).json({
+        message: "Категория с таким именем уже существует на этом уровне",
+      });
+    }
 
     if (existingCategory) {
       return res.status(409).json({
