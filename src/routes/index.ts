@@ -7,6 +7,7 @@ import file from "../modules/upload/upload.routes";
 import categoryRoutes from "../modules/category/category.routes";
 import order from "../modules/order/order.routes";
 import favorite from "../modules/favorite/favorite.routes";
+import searchRoutes from "../modules/search/search.routes";
 
 const configCors = {
   origin: [
@@ -25,5 +26,6 @@ router.use("/upload", cors(configCors), file);
 router.use("/category", cors(configCors), categoryRoutes);
 router.use("/order", cors(configCors), order);
 router.use("/favorite", cors(configCors), favorite);
+router.use("/search", cors(configCors), searchRoutes);
 
 export default router;

@@ -82,15 +82,18 @@ const createCategory = async (req: Request, res: Response) => {
   try {
     const { name, parentId } = req.body;
 
+    // 1. Валидация имени
     if (!name || typeof name !== "string" || name.trim() === "") {
       return res
         .status(400)
         .json({ message: "Название категории обязательно" });
     }
 
+    // 2. Обработка parentId
     let parsedParentId: number | null = null;
-    if (parentId !== undefined && parentId !== null) {
+    if (parentId !== undefined && parentId !== null && parentId !== "") {
       parsedParentId = Number(parentId);
+
       if (isNaN(parsedParentId)) {
         return res.status(400).json({ message: "Некорректный parentId" });
       }
@@ -106,6 +109,7 @@ const createCategory = async (req: Request, res: Response) => {
       }
     }
 
+    // 3. Проверка на дубликат (уже есть в вашем коде)
     const existingCategory = await prisma.category.findFirst({
       where: {
         name: name.trim(),
@@ -119,16 +123,12 @@ const createCategory = async (req: Request, res: Response) => {
       });
     }
 
-    if (existingCategory) {
-      return res.status(409).json({
-        message: "Категория с таким именем уже существует на этом уровне",
-      });
-    }
-
+    // 4. СОЗДАНИЕ (Исправлено формирование data)
     const category = await prisma.category.create({
       data: {
         name: name.trim(),
-        parentId: parsedParentId! ?? null,
+        // Если parsedParentId равен null, поле просто запишется как null
+        parentId: parsedParentId,
       },
       include: {
         parent: true,
@@ -137,7 +137,14 @@ const createCategory = async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ message: "Категория успешно создана", category });
-  } catch (error) {
+  } catch (error: any) {
+    // Обработка конкретной ошибки уникальности P2002
+    if (error.code === "P2002") {
+      return res
+        .status(409)
+        .json({ message: "Конфликт уникальных данных (ID или имя)" });
+    }
+
     console.error("Ошибка при создании категории:", error);
     res.status(500).json({ message: "Ошибка сервера при создании категории" });
   }
