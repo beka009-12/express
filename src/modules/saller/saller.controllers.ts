@@ -15,7 +15,7 @@ interface AuthRequest extends Request {
 // todo signUpSeller
 const signUpSeller = async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, phone } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -30,6 +30,7 @@ const signUpSeller = async (req: Request, res: Response) => {
         password: hashedPassword,
         name,
         role: "OWNER",
+        phone,
       },
     });
 
@@ -154,7 +155,7 @@ const createStore = async (req: AuthRequest, res: Response) => {
       data: {
         name,
         description,
-        logo, // ←  сюда прилетает URL из store-logos
+        logo,
         address,
         region,
         ownerId: userId,
@@ -163,6 +164,7 @@ const createStore = async (req: AuthRequest, res: Response) => {
 
     return res.status(201).json({
       message: "Магазин успешно создан",
+
       store,
     });
   } catch (error) {

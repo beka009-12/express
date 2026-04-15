@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { supabase } from "../../plugin/supabase";
 import { prisma } from "../../prisma";
+import { Prisma } from "@prisma/client";
 
 interface AuthRequest extends Request {
   user?: {
@@ -21,14 +22,26 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       price,
       newPrice,
       stockCount,
-      tags,
+      size,
+      color,
+      gender,
+      season,
     } = req.body;
 
     if (!req.user?.id) {
       return res.status(401).json({ message: "Не авторизован" });
     }
 
-    if (!categoryId || !title || !description || !price) {
+    if (
+      !categoryId ||
+      !title ||
+      !description ||
+      !price ||
+      !size ||
+      !color ||
+      !gender ||
+      !season
+    ) {
       return res.status(400).json({ message: "Заполните обязательные поля" });
     }
 
@@ -41,6 +54,15 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         message:
           "Цена со скидкой (newPrice) должна быть меньше основной цены (price)",
+      });
+    }
+
+    const seasonOptions = ["Весна", "Лето", "Осень", "Зима"];
+
+    if (season && !seasonOptions.includes(season)) {
+      return res.status(400).json({
+        message:
+          "Неверно указан сезон. Ожидается одно из значений: Весна, Лето, Осень, Зима",
       });
     }
 
@@ -79,15 +101,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       uploadedUrls.push(publicUrl.publicUrl);
     }
 
-    let parsedTags: string[] = [];
-    if (tags) {
-      try {
-        parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
-      } catch (e) {
-        parsedTags = [];
-      }
-    }
-
     const product = await prisma.product.create({
       data: {
         storeId: store.id,
@@ -99,8 +112,11 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         price: Number(price),
         newPrice: newPrice ? Number(newPrice) : null,
         stockCount: stockCount ? Number(stockCount) : 0,
-        tags: parsedTags,
         isActive: true,
+        size: size.trim(),
+        color: color.trim(),
+        gender: gender.trim(),
+        season: season.trim(),
       },
       include: { category: true, store: true },
     });
@@ -220,40 +236,44 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
       price,
       newPrice,
       stockCount,
-      tags,
       categoryId,
+      size,
+      color,
+      gender,
+      season,
       brandName,
     } = req.body;
 
-    if (!req.user?.id)
-      return res.status(401).json({ message: "Не авторизован" });
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
 
+    // Ищем товар и проверяем владельца
     const product = await prisma.product.findUnique({
       where: { id: Number(id) },
       include: { store: true },
     });
 
     if (!product) return res.status(404).json({ message: "Товар не найден" });
-    if (product.store.ownerId !== req.user.id)
+    if (product.store.ownerId !== userId)
       return res.status(403).json({ message: "Нет доступа" });
 
-    // Валидация цен: сравниваем новую цену с тем, что пришло или что уже есть в базе
-    const effectivePrice = price ? Number(price) : Number(product.price);
-    const effectiveNewPrice =
-      newPrice !== undefined
-        ? newPrice === null
-          ? null
-          : Number(newPrice)
-        : product.newPrice
-          ? Number(product.newPrice)
-          : null;
+    // Валидация цен (с проверкой на NaN)
+    const parsedPrice =
+      price !== undefined ? Number(price) : Number(product.price);
+    let parsedNewPrice = product.newPrice ? Number(product.newPrice) : null;
 
-    if (effectiveNewPrice !== null && effectiveNewPrice >= effectivePrice) {
+    if (newPrice !== undefined) {
+      parsedNewPrice =
+        newPrice === null || newPrice === "" ? null : Number(newPrice);
+    }
+
+    if (parsedNewPrice !== null && parsedNewPrice >= parsedPrice) {
       return res
         .status(400)
         .json({ message: "Цена со скидкой должна быть меньше основной" });
     }
 
+    // Логика наличия
     const currentStockCount =
       stockCount !== undefined ? Number(stockCount) : product.stockCount;
 
@@ -262,15 +282,17 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
       data: {
         ...(title && { title }),
         ...(description && { description }),
-        ...(price && { price: Number(price) }),
-        ...(newPrice !== undefined && {
-          newPrice:
-            newPrice !== null && newPrice !== "" ? Number(newPrice) : null,
-        }),
-        ...(stockCount !== undefined && { stockCount: Number(stockCount) }),
-        ...(tags && { tags: Array.isArray(tags) ? tags : JSON.parse(tags) }),
+        ...(price !== undefined && { price: parsedPrice }),
+        newPrice: parsedNewPrice, // Обновляем (может быть null)
+        stockCount: currentStockCount,
         ...(categoryId && { categoryId: Number(categoryId) }),
-        ...(brandName !== undefined && { brandName: brandName || null }),
+        brandName:
+          brandName !== undefined ? brandName || null : product.brandName,
+        ...(size && { size: size.trim() }),
+        ...(color && { color: color.trim() }),
+        ...(gender && { gender: gender.trim() }),
+        ...(season && { season: season.trim() }),
+        // Автоматические статусы
         archivedAt: currentStockCount === 0 ? new Date() : null,
         isActive: currentStockCount > 0,
       },
@@ -278,6 +300,7 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: "Товар обновлён", product: updated });
   } catch (error) {
+    console.error("Update error:", error);
     res.status(500).json({ message: "Ошибка обновления" });
   }
 };
@@ -297,53 +320,78 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
   } = req.query;
 
   try {
-    const filters: any = { isActive: true, archivedAt: null };
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
 
-    if (categoryId) filters.categoryId = Number(categoryId);
-    if (brandName)
-      filters.brandName = { contains: String(brandName), mode: "insensitive" };
+    // Используем массив AND, чтобы условия не перезаписывали друг друга
+    const andConditions: Prisma.ProductWhereInput[] = [
+      { isActive: true },
+      { archivedAt: null },
+    ];
 
+    if (categoryId) andConditions.push({ categoryId: Number(categoryId) });
+
+    if (brandName) {
+      andConditions.push({
+        brandName: { contains: String(brandName), mode: "insensitive" },
+      });
+    }
+
+    // Фильтр цен
     if (minPrice || maxPrice) {
       const min = minPrice ? Number(minPrice) : 0;
-      const max = maxPrice ? Number(maxPrice) : 9999999;
+      const max = maxPrice ? Number(maxPrice) : 99999999;
 
-      filters.AND = [
-        {
-          OR: [
-            {
-              AND: [
-                { newPrice: { not: null } },
-                { newPrice: { gte: min, lte: max } },
-              ],
-            },
-            // Случай 2: Скидки нет — ищем по базовой price
-            { AND: [{ newPrice: null }, { price: { gte: min, lte: max } }] },
-          ],
-        },
-      ];
+      andConditions.push({
+        OR: [
+          {
+            AND: [
+              { newPrice: { not: null } },
+              { newPrice: { gte: min, lte: max } },
+            ],
+          },
+          { AND: [{ newPrice: null }, { price: { gte: min, lte: max } }] },
+        ],
+      });
     }
 
+    // Поиск (Title или Теги)
     if (search) {
-      filters.OR = [
-        { title: { contains: String(search), mode: "insensitive" } },
-        { tags: { has: String(search) } },
-      ];
+      const searchStr = String(search);
+      // Если теги в БД — это массив строк (String[]), используем has
+      // Если в схеме тегов нет, убедись, что не пытаешься по ним искать
+      andConditions.push({
+        OR: [
+          { title: { contains: searchStr, mode: "insensitive" } },
+          { brandName: { contains: searchStr, mode: "insensitive" } },
+          // { tags: { has: searchStr } } // Раскомментируй, если добавишь теги в схему
+        ],
+      });
     }
 
-    const total = await prisma.product.count({ where: filters });
-    const products = await prisma.product.findMany({
-      where: filters,
-      skip: (+page - 1) * +limit,
-      take: +limit,
-      orderBy: { [String(sort)]: order },
-      include: { category: true, store: true },
-    });
+    const where: any = { AND: andConditions };
+
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        orderBy: { [String(sort)]: order },
+        include: { category: true, store: true },
+      }),
+    ]);
 
     res.json({
       products,
-      pagination: { total, page: +page, totalPages: Math.ceil(total / +limit) },
+      pagination: {
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Ошибка сервера" });
   }
 };

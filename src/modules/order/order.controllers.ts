@@ -2,54 +2,80 @@ import { Request, Response } from "express";
 import { prisma } from "../../prisma";
 import { AuthRequest } from "../../middleware/auth.middleware";
 
-const sendOrder = async (req: Request, res: Response) => {
+const addToCart = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId, items } = req.body;
+    const userId = req.user?.id;
 
-    if (!userId || !items || !items.length) {
-      return res.status(400).json({ message: "Неверные данные" });
-    }
-
-    const { productId, quantity } = items[0];
+    const { productId, quantity } = req.body;
 
     if (!productId || !quantity || quantity <= 0) {
       return res.status(400).json({ message: "Неверные данные" });
     }
 
-    const existingCartAlready = await prisma.cart.findUnique({
+    const numProductId = Number(productId);
+
+    const product = await prisma.product.findUnique({
+      where: { id: numProductId },
+    });
+
+    if (!product || !product.isActive || product.archivedAt) {
+      return res.status(404).json({ message: "Товар не найден" });
+    }
+
+    const existing = await prisma.cart.findUnique({
       where: {
         userId_productId: {
-          userId,
-          productId,
+          userId: userId!,
+          productId: numProductId,
         },
       },
     });
 
-    if (existingCartAlready) {
-      return res.status(409).json({ message: "Товар уже в корзине" });
+    if (existing) {
+      const updated = await prisma.cart.update({
+        where: {
+          userId_productId: { userId: userId!, productId: numProductId },
+        },
+        data: { quantity: existing.quantity + quantity },
+      });
+      return res.status(200).json(updated);
     }
 
-    const newCartItem = await prisma.cart.create({
-      data: { userId, productId },
+    const cartItem = await prisma.cart.create({
+      data: { userId: userId!, productId: numProductId, quantity },
     });
 
-    return res.status(201).json(newCartItem);
+    return res.status(201).json(cartItem);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-const getCart = async (req: Request, res: Response) => {
+const getCart = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user?.id;
 
     if (!userId) return res.status(400).json({ message: "Не указан userId" });
 
     const cart = await prisma.cart.findMany({
       where: { userId: Number(userId) },
       include: {
-        product: true,
+        product: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            description: true,
+            images: true,
+            stockCount: true,
+            isActive: true,
+            color: true,
+            size: true,
+            brandName: true,
+            categoryId: true,
+          },
+        },
       },
     });
 
@@ -60,16 +86,12 @@ const getCart = async (req: Request, res: Response) => {
   }
 };
 
-const deleteAllCart = async (req: Request, res: Response) => {
+const deleteAllCart = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.params;
-
-    if (!userId) {
-      return res.status(400).json({ message: "Не указан userId" });
-    }
+    const userId = req.user!.id;
 
     const result = await prisma.cart.deleteMany({
-      where: { userId: Number(userId) },
+      where: { userId },
     });
 
     return res.status(200).json({
@@ -77,6 +99,7 @@ const deleteAllCart = async (req: Request, res: Response) => {
       deletedCount: result.count,
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
@@ -84,17 +107,14 @@ const deleteAllCart = async (req: Request, res: Response) => {
 const deleteById = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { productId } = req.params;
+    const productId = Number(req.params.productId);
 
     if (!productId) {
       return res.status(400).json({ message: "Не указан productId" });
     }
 
     const result = await prisma.cart.deleteMany({
-      where: {
-        userId,
-        productId: Number(productId),
-      },
+      where: { userId, productId },
     });
 
     if (result.count === 0) {
@@ -111,4 +131,4 @@ const deleteById = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { sendOrder, getCart, deleteAllCart, deleteById };
+export { addToCart, getCart, deleteAllCart, deleteById };

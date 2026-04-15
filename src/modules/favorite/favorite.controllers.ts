@@ -1,18 +1,15 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { prisma } from "../../prisma";
 import { Prisma } from "@prisma/client";
 import { AuthRequest } from "../../middleware/auth.middleware";
 
-const addFavorite = async (req: Request, res: Response) => {
+// POST /favorites
+const addFavorite = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId, productId } = req.body;
-    if (!userId) {
-      return res.status(401).json({ message: "Не авторизован" });
-    }
+    const userId = req.user!.id;
+    const parsedProductId = Number(req.body.productId);
 
-    const parsedProductId = Number(productId);
-
-    if (!parsedProductId || Number.isNaN(parsedProductId)) {
+    if (!parsedProductId || isNaN(parsedProductId)) {
       return res.status(400).json({ message: "Некорректный productId" });
     }
 
@@ -26,78 +23,61 @@ const addFavorite = async (req: Request, res: Response) => {
     }
 
     const favorite = await prisma.favorite.create({
-      data: {
-        userId,
-        productId: parsedProductId,
-      },
+      data: { userId, productId: parsedProductId },
     });
 
-    return res.status(200).json({
-      message: "Успешно добавлен",
-      favorite,
-    });
+    return res.status(201).json({ message: "Успешно добавлен", favorite });
   } catch (error) {
-    // защита от дубля
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return res.status(409).json({
-          message: "Продукт уже в избранном",
-        });
+        return res.status(409).json({ message: "Продукт уже в избранном" });
       }
     }
-
     console.error("addFavorite error:", error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-const getFavorite = async (req: Request, res: Response) => {
+// GET /favorites
+const getFavorites = async (req: AuthRequest, res: Response) => {
   try {
-    const id = Number(req.params.userId);
-
-    if (isNaN(id)) {
-      return res.status(400).json({ message: "Неверный ID пользователя" });
-    }
+    const userId = req.user!.id;
 
     const favorites = await prisma.favorite.findMany({
-      where: { userId: id },
-      include: { product: true },
+      where: { userId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            newPrice: true,
+            images: true,
+            isActive: true,
+          },
+        },
+      },
     });
 
-    return res
-      .status(200)
-      .json({ message: "Успешно получены избранные продукты", favorites });
+    return res.status(200).json({ favorites });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
+// DELETE /favorites/:productId
 const deleteFavorite = async (req: AuthRequest, res: Response) => {
   try {
-    const { productId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.user!.id;
+    const parsedProductId = Number(req.params.productId);
 
-    const parsedProductId = Number(productId);
-
-    if (!parsedProductId || Number.isNaN(parsedProductId)) {
+    if (!parsedProductId || isNaN(parsedProductId)) {
       return res.status(400).json({ message: "Некорректный productId" });
     }
 
-    const product = await prisma.product.findUnique({
-      where: { id: parsedProductId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Продукт не найден" });
-    }
-
     const result = await prisma.favorite.deleteMany({
-      where: {
-        userId,
-        productId: parsedProductId,
-      },
+      where: { userId, productId: parsedProductId },
     });
 
     if (result.count === 0) {
@@ -106,8 +86,9 @@ const deleteFavorite = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json({ message: "Успешно удалено" });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-export { addFavorite, getFavorite, deleteFavorite };
+export { addFavorite, getFavorites, deleteFavorite };

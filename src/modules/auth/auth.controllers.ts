@@ -13,9 +13,9 @@ interface AuthRequest extends Request {
 
 const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, phone } = req.body;
 
-    if (!email || !password || !name)
+    if (!email || !password || !name || !phone)
       return res
         .status(400)
         .json({ message: "Заполните все обязательные поля" });
@@ -29,7 +29,7 @@ const register = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name, role: "USER" },
+      data: { email, password: hashedPassword, name, role: "USER", phone },
     });
 
     const token = jwt.sign(
@@ -101,6 +101,9 @@ const getProfile = async (req: AuthRequest, res: Response) => {
       where: { id: userId },
       include: {
         orders: true,
+        favorites: true,
+        cartItems: true,
+        addresses: true,
       },
     });
 
@@ -121,7 +124,7 @@ const logout = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json({ message: "Выход успешен" });
   } catch (error) {
-    return res.status(500).json({ message: "Ошибка сервера" });
+    return res.status(500).json({ message: "ошибка сервера" });
   }
 };
 
@@ -130,11 +133,11 @@ const updateProfile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Не авторизован" });
 
-    const { name, phone, avatar } = req.body;
+    const { name, phone, avatar, password, email } = req.body;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { name, phone, avatar },
+      data: { name, phone, avatar, password, email },
       select: {
         id: true,
         email: true,

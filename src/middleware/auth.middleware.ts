@@ -10,25 +10,33 @@ export interface AuthRequest extends Request {
   user?: JwtPayload;
 }
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET не задан в переменных окружения");
+}
+
 export const authMiddleware = (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ message: "Не авторизован" });
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Не авторизован" });
+  }
 
   const token = authHeader.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "Не авторизован" });
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "secret_key"
-    ) as JwtPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     req.user = decoded;
     next();
-  } catch {
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ message: "Токен истёк" });
+    }
     return res.status(401).json({ message: "Не авторизован" });
   }
 };

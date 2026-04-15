@@ -4,7 +4,7 @@ import { authMiddleware } from "../../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/create-order", authMiddleware, orderControllers.sendOrder);
+router.post("/create-order", authMiddleware, orderControllers.addToCart);
 router.get("/cart/:userId", authMiddleware, orderControllers.getCart);
 router.delete(
   "/delete-all-cart/:userId",

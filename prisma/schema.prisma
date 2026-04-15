@@ -8,9 +8,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//
-// Пользователь
-//
+// ====================== ENUMS ======================
+
+enum UserRole {
+  ADMIN
+  OWNER
+  USER
+}
+
+enum OrderStatus {
+  PENDING // новый заказ
+  PAID // оплачен
+  PROCESSING // в обработке у продавца
+  SHIPPED // отправлен
+  COMPLETED // доставлен
+  CANCELED // отменён
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryMethod {
+  PICKUP // самовывоз
+  COURIER_BISHKEK // курьер по Бишкеку
+  COURIER_REGION // по регионам КР
+  EXPRESS // срочная доставка
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNISEX
+}
+
+enum Season {
+  SPRING_SUMMER
+  AUTUMN_WINTER
+  ALL_SEASON
+}
+
+// ====================== MODELS ======================
+
 model User {
   id        Int       @id @default(autoincrement())
   email     String    @unique
@@ -25,6 +67,8 @@ model User {
   orders    Order[]
   stores    Store[]
   favorites Favorite[]
+  addresses Address[] // добавил
+  reviews   Review[] // добавил
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -32,9 +76,6 @@ model User {
   @@map("users")
 }
 
-//
-// Магазин
-//
 model Store {
   id          Int      @id @default(autoincrement())
   name        String
@@ -50,6 +91,7 @@ model Store {
   owner   User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   products Product[]
+  reviews  Review[] // добавил
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -58,9 +100,6 @@ model Store {
   @@map("stores")
 }
 
-//
-// Категория с иерархией
-//
 model Category {
   id       Int    @id @default(autoincrement())
   name     String
@@ -78,9 +117,6 @@ model Category {
   @@map("categories")
 }
 
-//
-// Продукт
-//
 model Product {
   id         Int @id @default(autoincrement())
   storeId    Int
@@ -92,11 +128,20 @@ model Product {
 
   brandName String?
 
+  // Поля специально для одежды
+  sku      String? @unique
+  size     String?
+  color    String?
+  material String?
+  gender   Gender?
+  season   Season?
+
   price    Decimal  @db.Decimal(10, 2)
   newPrice Decimal? @db.Decimal(10, 2)
 
-  stockCount Int      @default(0)
-  tags       String[]
+  stockCount Int @default(0)
+  soldCount  Int @default(0)
+  views      Int @default(0)
 
   isActive   Boolean   @default(true)
   archivedAt DateTime?
@@ -107,19 +152,62 @@ model Product {
   cartItems  Cart[]
   orderItems OrderItem[]
   favorites  Favorite[]
+  reviews    Review[] // добавил
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([categoryId])
   @@index([price])
-  @@index([brandName])
+  @@index([isActive])
+  @@index([soldCount])
   @@map("products")
 }
 
-//
-// Корзина
-//
+model Review {
+  id        Int  @id @default(autoincrement())
+  userId    Int
+  productId Int
+  storeId   Int?
+
+  rating  Int      @db.SmallInt // 1-5
+  comment String?
+  images  String[]
+
+  isApproved Boolean @default(true)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([storeId])
+  @@map("reviews")
+}
+
+model Address {
+  id        Int     @id @default(autoincrement())
+  userId    Int
+  label     String // "Дом", "Работа" и т.д.
+  name      String
+  phone     String
+  address   String
+  city      String  @default("Бишкек")
+  region    String?
+  isDefault Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+
+  @@map("addresses")
+}
+
+// Остальные модели без сильных изменений
 model Cart {
   id        Int @id @default(autoincrement())
   userId    Int
@@ -135,18 +223,22 @@ model Cart {
   @@map("cart_items")
 }
 
-//
-// Заказы
-//
 model Order {
   id     Int         @id @default(autoincrement())
   userId Int
   total  Decimal     @db.Decimal(10, 2)
   status OrderStatus @default(PENDING)
 
+  deliveryMethod DeliveryMethod @default(COURIER_BISHKEK)
+  deliveryCost   Decimal        @default(0) @db.Decimal(10, 2)
+  trackingNumber String?
+
   deliveryName    String
   deliveryPhone   String
   deliveryAddress String
+
+  addressId Int? // связь с Address
+  address   Address? @relation(fields: [addressId], references: [id])
 
   platformFee Decimal? @db.Decimal(10, 2)
 
@@ -158,27 +250,10 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([status])
   @@map("orders")
 }
 
-//
-// Избранное
-//
-model Favorite {
-  id        Int @id @default(autoincrement())
-  userId    Int
-  productId Int
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, productId])
-  @@map("favorites")
-}
-
-//
-// Позиции заказа
-//
 model OrderItem {
   id        Int     @id @default(autoincrement())
   orderId   Int
@@ -192,15 +267,12 @@ model OrderItem {
   @@map("order_items")
 }
 
-//
-// Платежи
-//
 model Payment {
   id            Int           @id @default(autoincrement())
   orderId       Int           @unique
   amount        Decimal       @db.Decimal(10, 2)
   status        PaymentStatus @default(PENDING)
-  paymentMethod String // "card", "cash_on_delivery", "bank_transfer"
+  paymentMethod String
 
   transactionId String?
   paymentData   Json?
@@ -213,26 +285,14 @@ model Payment {
   @@map("payments")
 }
 
-//
-// Роли пользователей
-//
-enum UserRole {
-  ADMIN
-  OWNER
-  USER
-}
+model Favorite {
+  id        Int @id @default(autoincrement())
+  userId    Int
+  productId Int
 
-enum OrderStatus {
-  PENDING
-  PAID
-  SHIPPED
-  COMPLETED
-  CANCELED
-}
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
+  @@unique([userId, productId])
+  @@map("favorites")
 }
