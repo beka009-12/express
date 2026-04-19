@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { supabase } from "../../plugin/supabase";
 import { prisma } from "../../prisma";
 import { Prisma } from "@prisma/client";
+import { generateUniqueSKU } from "../../utils/skuGenerator";
 
 interface AuthRequest extends Request {
   user?: {
@@ -22,8 +23,8 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       price,
       newPrice,
       stockCount,
-      size,
-      color,
+      sizes,
+      colors,
       gender,
       season,
     } = req.body;
@@ -32,24 +33,38 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Не авторизован" });
     }
 
+    // Обязательные поля
     if (
       !categoryId ||
       !title ||
       !description ||
       !price ||
-      !size ||
-      !color ||
+      !sizes ||
+      !colors ||
       !gender ||
       !season
     ) {
       return res.status(400).json({ message: "Заполните обязательные поля" });
     }
 
+    // Валидация массивов
+    if (!Array.isArray(sizes) || sizes.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "sizes должен быть непустым массивом" });
+    }
+
+    if (!Array.isArray(colors) || colors.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "colors должен быть непустым массивом" });
+    }
+
     if (!files || files.length === 0) {
       return res.status(400).json({ message: "Добавьте хотя бы одно фото" });
     }
 
-    // ЛОГИКА: newPrice (скидка) должна быть МЕНЬШЕ чем price (базовая)
+    // Проверка цены со скидкой
     if (newPrice && Number(newPrice) >= Number(price)) {
       return res.status(400).json({
         message:
@@ -57,12 +72,12 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const seasonOptions = ["Весна", "Лето", "Осень", "Зима"];
+    const seasonOptions = ["SPRING_SUMMER", "AUTUMN_WINTER", "ALL_SEASON"];
 
     if (season && !seasonOptions.includes(season)) {
       return res.status(400).json({
         message:
-          "Неверно указан сезон. Ожидается одно из значений: Весна, Лето, Осень, Зима",
+          "Неверно указан сезон. Ожидается одно из: SPRING_SUMMER, AUTUMN_WINTER, ALL_SEASON",
       });
     }
 
@@ -82,6 +97,7 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "Категория не найдена" });
     }
 
+    // Загрузка изображений (без изменений)
     const uploadedUrls: string[] = [];
     for (const file of files) {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.originalname}`;
@@ -101,6 +117,15 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       uploadedUrls.push(publicUrl.publicUrl);
     }
 
+    const sku = await generateUniqueSKU(
+      prisma,
+      brandName,
+      title,
+      colors,
+      category.name,
+    );
+
+    // Создание продукта — основные изменения здесь
     const product = await prisma.product.create({
       data: {
         storeId: store.id,
@@ -113,8 +138,11 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         newPrice: newPrice ? Number(newPrice) : null,
         stockCount: stockCount ? Number(stockCount) : 0,
         isActive: true,
-        size: size.trim(),
-        color: color.trim(),
+        sku: sku,
+
+        sizes: sizes, // ← массив строк ["37", "38", "39", ...]
+        colors: colors, // ← массив (строки или объекты)
+
         gender: gender.trim(),
         season: season.trim(),
       },

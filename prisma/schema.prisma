@@ -110,8 +110,9 @@ model Category {
 
   products Product[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@unique([name, parentId])
   @@map("categories")
@@ -129,9 +130,9 @@ model Product {
   brandName String?
 
   // Поля специально для одежды
-  sku      String? @unique
-  size     String?
-  color    String?
+  sku      String?  @unique
+  sizes    String[]
+  colors   String[]
   material String?
   gender   Gender?
   season   Season?
@@ -154,8 +155,9 @@ model Product {
   favorites  Favorite[]
   reviews    Review[] // добавил
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([categoryId])
   @@index([price])
@@ -180,7 +182,8 @@ model Review {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   @@index([productId])
   @@index([storeId])
