@@ -3,6 +3,61 @@ import { searchProducts } from "./search.controllers";
 
 const router = Router();
 
+/**
+ * @openapi
+ * /search/products:
+ *   get:
+ *     tags: [Search]
+ *     summary: Поиск товаров
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Поисковый запрос (fuzzy поиск по title, brandName)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: categoryId
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: minPrice
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: brandName
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: storeId
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: inStock
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Результаты поиска с пагинацией
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProductListResponse'
+ */
+
 const validateSearchQuery = (
   req: Request,
   res: Response,

@@ -1,5 +1,4 @@
 import { Router } from "express";
-import cors from "cors";
 import authRoutes from "../modules/auth/auth.routes";
 import sallerRouts from "../modules/saller/saller.routes";
 import product from "../modules/product/product.routes";
@@ -9,23 +8,15 @@ import order from "../modules/order/order.routes";
 import favorite from "../modules/favorite/favorite.routes";
 import searchRoutes from "../modules/search/search.routes";
 
-const configCors = {
-  origin: [
-    "http://localhost:3000",
-    "https://shop-green-nu.vercel.app",
-    "http://localhost:3001",
-  ],
-};
-
 const router = Router();
 
-router.use("/auth", cors(configCors), authRoutes);
-router.use("/saller", cors(configCors), sallerRouts);
-router.use("/commodity", cors(configCors), product);
-router.use("/upload", cors(configCors), file);
-router.use("/category", cors(configCors), categoryRoutes);
-router.use("/order", cors(configCors), order);
-router.use("/favorite", cors(configCors), favorite);
-router.use("/search", cors(configCors), searchRoutes);
+router.use("/auth", authRoutes);
+router.use("/saller", sallerRouts);
+router.use("/commodity", product);
+router.use("/upload", file);
+router.use("/category", categoryRoutes);
+router.use("/order", order);
+router.use("/favorite", favorite);
+router.use("/search", searchRoutes);
 
 export default router;

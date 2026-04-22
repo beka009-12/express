@@ -153,7 +153,7 @@ model Product {
   cartItems  Cart[]
   orderItems OrderItem[]
   favorites  Favorite[]
-  reviews    Review[] // добавил
+  reviews    Review[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

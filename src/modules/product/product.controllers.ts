@@ -33,7 +33,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Не авторизован" });
     }
 
-    // Обязательные поля
     if (
       !categoryId ||
       !title ||
@@ -125,7 +124,6 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       category.name,
     );
 
-    // Создание продукта — основные изменения здесь
     const product = await prisma.product.create({
       data: {
         storeId: store.id,
@@ -140,8 +138,8 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         isActive: true,
         sku: sku,
 
-        sizes: sizes, // ← массив строк ["37", "38", "39", ...]
-        colors: colors, // ← массив (строки или объекты)
+        sizes: sizes,
+        colors: colors,
 
         gender: gender.trim(),
         season: season.trim(),
@@ -351,7 +349,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.max(1, Number(limit));
 
-    // Используем массив AND, чтобы условия не перезаписывали друг друга
     const andConditions: Prisma.ProductWhereInput[] = [
       { isActive: true },
       { archivedAt: null },
@@ -365,7 +362,6 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
       });
     }
 
-    // Фильтр цен
     if (minPrice || maxPrice) {
       const min = minPrice ? Number(minPrice) : 0;
       const max = maxPrice ? Number(maxPrice) : 99999999;
@@ -383,16 +379,12 @@ const getAllProductsForUsers = async (req: Request, res: Response) => {
       });
     }
 
-    // Поиск (Title или Теги)
     if (search) {
       const searchStr = String(search);
-      // Если теги в БД — это массив строк (String[]), используем has
-      // Если в схеме тегов нет, убедись, что не пытаешься по ним искать
       andConditions.push({
         OR: [
           { title: { contains: searchStr, mode: "insensitive" } },
           { brandName: { contains: searchStr, mode: "insensitive" } },
-          // { tags: { has: searchStr } } // Раскомментируй, если добавишь теги в схему
         ],
       });
     }
