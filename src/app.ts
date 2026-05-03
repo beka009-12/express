@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import routes from "./routes";
+import routes from "./router";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 
@@ -28,7 +28,7 @@ export const buildServer = () => {
         version: "1.0.0",
         description: "API for my startup",
       },
-      servers: [{ url: "http://localhost:5003" }],
+      servers: [{ url: "http://localhost:5003/nest-shop" }],
       components: {
         securitySchemes: {
           bearerAuth: {

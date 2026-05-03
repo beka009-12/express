@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as sallerRouter from "./saller.controllers";
+import * as sallerRouter from "./saller.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
 import { upload } from "../../plugin/multer";
 

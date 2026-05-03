@@ -10,12 +10,14 @@ datasource db {
 
 // ====================== ENUMS ======================
 
+// ? Роли пользователей
 enum UserRole {
   ADMIN
   OWNER
   USER
 }
 
+// ? Статусы заказов для управления жизненным циклом заказа
 enum OrderStatus {
   PENDING // новый заказ
   PAID // оплачен
@@ -25,6 +27,7 @@ enum OrderStatus {
   CANCELED // отменён
 }
 
+// ? Статусы платежей для интеграции с платежными системами
 enum PaymentStatus {
   PENDING
   COMPLETED
@@ -39,6 +42,7 @@ enum DeliveryMethod {
   EXPRESS // срочная доставка
 }
 
+// ? Дополнительные атрибуты для одежды
 enum Gender {
   MALE
   FEMALE
@@ -51,7 +55,23 @@ enum Season {
   ALL_SEASON
 }
 
-// ====================== MODELS ======================
+// ? Типы промоакций для баннеров
+enum PromoType {
+  PERCENT
+  FIXED_PRICE
+  BUY_ONE_GET
+  SEASONAL
+}
+
+enum BannerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// todo Модели
+
+// ! Пользователи и магазины
 
 model User {
   id        Int       @id @default(autoincrement())
@@ -95,10 +115,13 @@ model Store {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  banners   Banner[]
 
   @@index([ownerId])
   @@map("stores")
 }
+
+// ! Категории и продукты
 
 model Category {
   id       Int    @id @default(autoincrement())
@@ -155,16 +178,105 @@ model Product {
   favorites  Favorite[]
   reviews    Review[]
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  banners        Banner[]
+  bannerProducts BannerProduct[]
 
+  @@index([storeId])
   @@index([categoryId])
   @@index([price])
   @@index([isActive])
   @@index([soldCount])
   @@map("products")
 }
+
+// ! banners и промоакции 
+
+model Banner {
+  id      Int @id @default(autoincrement())
+  storeId Int
+
+  // Контент
+  title       String // "Скидка"
+  accent      String // "−50% на всю обувь Nike"
+  description String // подзаголовок
+  decoNum     String // "−50%", "1+1", "4990"
+  promoTag    String // "Сезонная распродажа"
+  color       String @default("red")
+
+  // Логика скидок
+  promoType  PromoType
+  discount   Int? // % если PERCENT
+  fixedPrice Decimal?  @db.Decimal(10, 2)
+
+  // Статусы и модерация
+  deadline     DateTime
+  isActive     Boolean      @default(true)
+  status       BannerStatus @default(PENDING)
+  rejectReason String? // ПОЧЕМУ отклонили (важно для фидбека продавцу)
+
+  // Связи
+  slot     BannerSlot?
+  products BannerProduct[]
+  store    Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product? @relation(fields: [productId], references: [id])
+  productId Int?
+
+  @@index([isActive])
+  @@index([status])
+  @@index([deadline])
+  @@map("banners")
+}
+
+model BannerSlot {
+  id       Int @id @default(autoincrement())
+  bannerId Int @unique
+
+  // Финансы
+  price  Decimal @default(500.00) @db.Decimal(10, 2) // Базовая цена
+  isPaid Boolean @default(false)
+
+  // Период показа
+  startAt DateTime @default(now())
+  endAt   DateTime
+
+  banner Banner @relation(fields: [bannerId], references: [id], onDelete: Cascade)
+
+  @@index([endAt])
+  @@map("banner_slots")
+}
+
+model PromoCode {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique
+  discount   Int // Например, 100 для полной скидки
+  usageLimit Int      @default(1)
+  usedCount  Int      @default(0)
+  isActive   Boolean  @default(true)
+  expiresAt  DateTime
+
+  @@map("promo_codes")
+}
+
+model BannerProduct {
+  id            Int     @id @default(autoincrement())
+  bannerId      Int
+  productId     Int
+  originalPrice Decimal @db.Decimal(10, 2) // Цена на момент создания для истории
+
+  banner  Banner  @relation(fields: [bannerId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([bannerId, productId])
+  @@map("banner_products")
+}
+
+// ! Отзывы и адреса 
 
 model Review {
   id        Int  @id @default(autoincrement())
@@ -210,7 +322,8 @@ model Address {
   @@map("addresses")
 }
 
-// Остальные модели без сильных изменений
+// ! Корзина и заказы
+
 model Cart {
   id        Int @id @default(autoincrement())
   userId    Int
@@ -270,6 +383,8 @@ model OrderItem {
   @@map("order_items")
 }
 
+// ! Платежи 
+
 model Payment {
   id            Int           @id @default(autoincrement())
   orderId       Int           @unique
@@ -287,6 +402,8 @@ model Payment {
 
   @@map("payments")
 }
+
+// ! Избранное
 
 model Favorite {
   id        Int @id @default(autoincrement())

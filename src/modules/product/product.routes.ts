@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as productControllers from "../product/product.controllers";
+import * as productControllers from "./product.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
 import multer from "multer";
 

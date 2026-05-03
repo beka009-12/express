@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as favorite from "./favorite.controllers";
+import * as favorite from "./favorite.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
 
 const router = Router();
