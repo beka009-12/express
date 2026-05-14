@@ -1,134 +1,109 @@
 import { Request, Response } from "express";
-import { prisma } from "../../prisma";
+import { orderService } from "./order.service";
 import { AuthRequest } from "../../middleware/auth.middleware";
+import { CreateOrderDto } from "./order.validation";
 
-const addToCart = async (req: AuthRequest, res: Response) => {
+const createOrder = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user!.id;
+    const dto: CreateOrderDto = req.body;
 
-    const { productId, quantity } = req.body;
-
-    if (!productId || !quantity || quantity <= 0) {
-      return res.status(400).json({ message: "Неверные данные" });
-    }
-
-    const numProductId = Number(productId);
-
-    const product = await prisma.product.findUnique({
-      where: { id: numProductId },
-    });
-
-    if (!product || !product.isActive || product.archivedAt) {
-      return res.status(404).json({ message: "Товар не найден" });
-    }
-
-    const existing = await prisma.cart.findUnique({
-      where: {
-        userId_productId: {
-          userId: userId!,
-          productId: numProductId,
-        },
-      },
-    });
-
-    if (existing) {
-      const updated = await prisma.cart.update({
-        where: {
-          userId_productId: { userId: userId!, productId: numProductId },
-        },
-        data: { quantity: existing.quantity + quantity },
+    // Можно добавить базовую валидацию здесь
+    if (!dto.deliveryMethod) {
+      return res.status(400).json({
+        message: "Метод доставки обязателен",
       });
-      return res.status(200).json(updated);
     }
 
-    const cartItem = await prisma.cart.create({
-      data: { userId: userId!, productId: numProductId, quantity },
+    const result = await orderService.createOrder(userId, dto);
+
+    return res.status(201).json({
+      success: true,
+      message: "Заказ успешно создан",
+      data: result,
+    });
+  } catch (err: any) {
+    console.error("Create order error:", err);
+
+    // Обработка известных ошибок
+    if (err.message.includes("Корзина пуста")) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.message.includes("Адрес доставки не найден")) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (
+      err.message.includes("недостаточно товара") ||
+      err.message.includes("больше не доступен")
+    ) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    return res.status(500).json({
+      message: "Ошибка при создании заказа",
+    });
+  }
+};
+
+// Получение заказов пользователя
+const getUserOrders = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { status, page = 1, limit = 10 } = req.query;
+
+    const orders = await orderService.getUserOrders(userId, {
+      status: status as any,
+      page: Number(page),
+      limit: Number(limit),
     });
 
-    return res.status(201).json(cartItem);
+    if (orders.length === 0) {
+      return res.status(404).json({ message: "Заказы не найдены" });
+    }
+
+    return res.status(200).json(orders);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-const getCart = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-
-    if (!userId) return res.status(400).json({ message: "Не указан userId" });
-
-    const cart = await prisma.cart.findMany({
-      where: { userId: Number(userId) },
-      include: {
-        product: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            description: true,
-            images: true,
-            stockCount: true,
-            isActive: true,
-            colors: true,
-            sizes: true,
-            brandName: true,
-            categoryId: true,
-          },
-        },
-      },
-    });
-
-    return res.status(200).json(cart);
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Ошибка сервера" });
-  }
-};
-
-const deleteAllCart = async (req: AuthRequest, res: Response) => {
+const getOrderById = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const orderId = Number(req.params.orderId);
 
-    const result = await prisma.cart.deleteMany({
-      where: { userId },
-    });
+    const order = await orderService.getOrderById(userId, orderId);
 
-    return res.status(200).json({
-      message: "Корзина очищена",
-      deletedCount: result.count,
-    });
-  } catch (error) {
-    console.error(error);
+    return res.status(200).json(order);
+  } catch (err: any) {
+    if (err.message.includes("не найден")) {
+      return res.status(404).json({ message: err.message });
+    }
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-const deleteById = async (req: AuthRequest, res: Response) => {
+const cancelOrder = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const productId = Number(req.params.productId);
+    const orderId = Number(req.params.orderId);
 
-    if (!productId) {
-      return res.status(400).json({ message: "Не указан productId" });
-    }
-
-    const result = await prisma.cart.deleteMany({
-      where: { userId, productId },
-    });
-
-    if (result.count === 0) {
-      return res.status(404).json({ message: "Товар не найден в корзине" });
-    }
+    await orderService.cancelOrder(userId, orderId);
 
     return res.status(200).json({
-      message: "Товар удалён из корзины",
-      deletedCount: result.count,
+      success: true,
+      message: "Заказ успешно отменён",
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err: any) {
+    if (err.message.includes("не найден")) {
+      return res.status(404).json({ message: err.message });
+    }
+    if (err.message.includes("нельзя отменить")) {
+      return res.status(400).json({ message: err.message });
+    }
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-export { addToCart, getCart, deleteAllCart, deleteById };
+export { createOrder, getUserOrders, getOrderById, cancelOrder };

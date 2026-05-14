@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import { supabase } from "../../plugin/supabase";
 import { prisma } from "../../prisma";
 import { Prisma } from "@prisma/client";
-import { generateUniqueSKU } from "../../utils/skuGenerator";
+import { CreateProductDto } from "./product.validation";
+import { productService } from "./product.service";
 
 interface AuthRequest extends Request {
   user?: {
@@ -11,100 +12,51 @@ interface AuthRequest extends Request {
   };
 }
 
-// ✅ CREATE PRODUCT
+// ? ✅ CREATE PRODUCT
 const createProduct = async (req: AuthRequest, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[] | undefined;
-    const {
-      categoryId,
-      brandName,
-      title,
-      description,
-      price,
-      newPrice,
-      stockCount,
-      sizes,
-      colors,
-      gender,
-      season,
-    } = req.body;
-
-    if (!req.user?.id) {
-      return res.status(401).json({ message: "Не авторизован" });
-    }
-
-    if (
-      !categoryId ||
-      !title ||
-      !description ||
-      !price ||
-      !sizes ||
-      !colors ||
-      !gender ||
-      !season
-    ) {
-      return res.status(400).json({ message: "Заполните обязательные поля" });
-    }
-
-    // Валидация массивов
-    if (!Array.isArray(sizes) || sizes.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "sizes должен быть непустым массивом" });
-    }
-
-    if (!Array.isArray(colors) || colors.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "colors должен быть непустым массивом" });
-    }
 
     if (!files || files.length === 0) {
       return res.status(400).json({ message: "Добавьте хотя бы одно фото" });
     }
 
-    // Проверка цены со скидкой
-    if (newPrice && Number(newPrice) >= Number(price)) {
-      return res.status(400).json({
-        message:
-          "Цена со скидкой (newPrice) должна быть меньше основной цены (price)",
-      });
-    }
+    const dto: CreateProductDto = {
+      categoryId: Number(req.body.categoryId),
+      title: req.body.title,
+      description: req.body.description,
+      price: Number(req.body.price),
+      newPrice: req.body.newPrice ? Number(req.body.newPrice) : null,
+      stockCount: req.body.stockCount ? Number(req.body.stockCount) : 0,
+      brandName: req.body.brandName || null,
+      sizes:
+        typeof req.body.sizes === "string"
+          ? JSON.parse(req.body.sizes)
+          : req.body.sizes,
+      colors:
+        typeof req.body.colors === "string"
+          ? JSON.parse(req.body.colors)
+          : req.body.colors,
+      material: req.body.material || null,
+      gender: req.body.gender,
+      season: req.body.season,
+    };
 
-    const seasonOptions = ["SPRING_SUMMER", "AUTUMN_WINTER", "ALL_SEASON"];
+    // Загрузка изображений
+    const imageData: Array<{
+      url: string;
+      isMain?: boolean;
+      altText?: string;
+    }> = [];
 
-    if (season && !seasonOptions.includes(season)) {
-      return res.status(400).json({
-        message:
-          "Неверно указан сезон. Ожидается одно из: SPRING_SUMMER, AUTUMN_WINTER, ALL_SEASON",
-      });
-    }
-
-    const store = await prisma.store.findFirst({
-      where: { ownerId: req.user.id },
-    });
-
-    if (!store) {
-      return res.status(400).json({ message: "Сначала создайте магазин" });
-    }
-
-    const category = await prisma.category.findUnique({
-      where: { id: Number(categoryId) },
-    });
-
-    if (!category) {
-      return res.status(400).json({ message: "Категория не найдена" });
-    }
-
-    // Загрузка изображений (без изменений)
-    const uploadedUrls: string[] = [];
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.originalname}`;
+
       const { data, error } = await supabase.storage
         .from("product-image")
         .upload(`uploads/${fileName}`, file.buffer, {
           contentType: file.mimetype,
-          upsert: false,
         });
 
       if (error) throw new Error(`Ошибка загрузки: ${error.message}`);
@@ -113,146 +65,114 @@ const createProduct = async (req: AuthRequest, res: Response) => {
         .from("product-image")
         .getPublicUrl(data.path);
 
-      uploadedUrls.push(publicUrl.publicUrl);
+      imageData.push({
+        url: publicUrl.publicUrl,
+        isMain: i === 0, // первое фото — главное
+        altText: `${dto.title} - фото ${i + 1}`,
+      });
     }
 
-    const sku = await generateUniqueSKU(
-      prisma,
-      brandName,
-      title,
-      colors,
-      category.name,
+    const product = await productService.createProdct(
+      req.user!.id,
+      dto,
+      imageData,
     );
 
-    const product = await prisma.product.create({
-      data: {
-        storeId: store.id,
-        categoryId: Number(categoryId),
-        brandName: brandName || null,
-        title: title.trim(),
-        description: description.trim(),
-        images: uploadedUrls,
-        price: Number(price),
-        newPrice: newPrice ? Number(newPrice) : null,
-        stockCount: stockCount ? Number(stockCount) : 0,
-        isActive: true,
-        sku: sku,
-
-        sizes: sizes,
-        colors: colors,
-
-        gender: gender.trim(),
-        season: season.trim(),
-      },
-      include: { category: true, store: true },
+    return res.status(201).json({
+      message: "Товар успешно создан",
+      product,
     });
-
-    res.status(201).json({ message: "Товар создан", product });
-  } catch (e) {
-    res.status(500).json({
-      message: "Ошибка создания товара",
-      error: e instanceof Error ? e.message : "Ошибка",
+  } catch (e: any) {
+    console.error(e);
+    return res.status(400).json({
+      message: e.message || "Ошибка при создании товара",
     });
   }
 };
 
-// ✅ GET PRODUCTS (seller only)
-const getProduct = async (req: AuthRequest, res: Response) => {
+// ? ✅ GET PRODUCT BY ID (Public - для всех пользователей)
+const getProductByIdPublic = async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id)
-      return res.status(401).json({ message: "Не авторизован" });
+    const productId = Number(req.params.id);
 
-    const store = await prisma.store.findFirst({
-      where: { ownerId: req.user.id },
-    });
+    if (!productId || isNaN(productId)) {
+      return res.status(400).json({ message: "Неверный ID товара" });
+    }
 
-    if (!store) return res.status(404).json({ message: "Магазин не найден" });
+    const product = await productService.getProductByIdPublic(productId);
 
-    const products = await prisma.product.findMany({
-      where: { storeId: store.id },
-      include: { category: true },
-      orderBy: { createdAt: "desc" },
-    });
-
-    res.json({ products });
-  } catch (error) {
-    console.error("Ошибка получения товаров:", error);
-    res.status(500).json({ message: "Ошибка сервера" });
-  }
-};
-
-// ✅ GET PRODUCT BY ID
-const getProductById = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const product = await prisma.product.findUnique({
-      where: { id: Number(id) },
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            logo: true,
-            isVerified: true,
-            rating: true,
-          },
-        },
-        category: true,
-      },
-    });
-
-    if (!product) return res.status(404).json({ message: "Товар не найден" });
+    if (!product) {
+      return res
+        .status(404)
+        .json({ message: "Товар не найден или не доступен" });
+    }
 
     return res.status(200).json({ product });
-  } catch (error) {
-    console.error("Ошибка получения товара:", error);
+  } catch (error: any) {
+    console.error("Ошибка получения товара (public):", error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-// ✅ DELETE PRODUCT
-const deleteProduct = async (req: AuthRequest, res: Response) => {
+// ? ✅ GET PRODUCT BY ID (для владельца магазина)
+const getProductByIdOwner = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const productId = Number(req.params.id);
+
+    if (!productId || isNaN(productId)) {
+      return res.status(400).json({ message: "Неверный ID товара" });
+    }
 
     if (!req.user?.id) {
       return res.status(401).json({ message: "Не авторизован" });
     }
 
-    const product = await prisma.product.findUnique({
-      where: { id: Number(id) },
-      include: { store: true },
-    });
+    const product = await productService.getProductById(productId, req.user.id);
 
-    if (!product) return res.status(404).json({ message: "Товар не найден" });
-
-    if (product.store.ownerId !== req.user.id) {
-      return res.status(403).json({ message: "Нет доступа для удаления" });
+    if (!product) {
+      return res
+        .status(404)
+        .json({ message: "Товар не найден или у вас нет доступа" });
     }
 
-    if (product.images.length > 0) {
-      for (const imageUrl of product.images) {
-        try {
-          const path = imageUrl.split("/").slice(-2).join("/");
-          await supabase.storage.from("product-image").remove([path]);
-        } catch (err) {
-          console.error("Ошибка удаления изображения:", err);
-        }
-      }
-    }
-
-    await prisma.product.delete({ where: { id: Number(id) } });
-
-    return res.status(200).json({ message: "Товар удалён" });
-  } catch (error) {
-    console.error("Ошибка удаления товара:", error);
+    return res.status(200).json({ product });
+  } catch (error: any) {
+    console.error("Ошибка получения товара (owner):", error);
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-// ✅ UPDATE PRODUCT
+// ? ✅ DELETE PRODUCT
+const deleteProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const productId = Number(req.params.id);
+
+    if (!productId || isNaN(productId)) {
+      return res.status(400).json({ message: "Неверный ID товара" });
+    }
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Не авторизован" });
+    }
+
+    const result = await productService.deleteProduct(productId, req.user.id);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Delete product error:", error);
+
+    if (error.message.includes("не найден")) {
+      return res.status(404).json({ message: error.message });
+    }
+    if (error.message.includes("нет прав")) {
+      return res.status(403).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: "Ошибка при удалении товара" });
+  }
+};
+
+// ? ✅ UPDATE PRODUCT
 const updateProduct = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -331,168 +251,62 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ✅ GET ALL PRODUCTS FOR USERS (with filters)
-const getAllProductsForUsers = async (req: Request, res: Response) => {
-  const {
-    page = "1",
-    limit = "20",
-    categoryId,
-    brandName,
-    minPrice,
-    maxPrice,
-    search,
-    sort = "createdAt",
-    order = "desc",
-  } = req.query;
-
+// ? ✅ GET ALL PRODUCTS / GET PRODUCTS INFINITE (with filters)
+const getProductsInfinite = async (req: Request, res: Response) => {
   try {
-    const pageNum = Math.max(1, Number(page));
-    const limitNum = Math.max(1, Number(limit));
-
-    const andConditions: Prisma.ProductWhereInput[] = [
-      { isActive: true },
-      { archivedAt: null },
-    ];
-
-    if (categoryId) andConditions.push({ categoryId: Number(categoryId) });
-
-    if (brandName) {
-      andConditions.push({
-        brandName: { contains: String(brandName), mode: "insensitive" },
-      });
-    }
-
-    if (minPrice || maxPrice) {
-      const min = minPrice ? Number(minPrice) : 0;
-      const max = maxPrice ? Number(maxPrice) : 99999999;
-
-      andConditions.push({
-        OR: [
-          {
-            AND: [
-              { newPrice: { not: null } },
-              { newPrice: { gte: min, lte: max } },
-            ],
-          },
-          { AND: [{ newPrice: null }, { price: { gte: min, lte: max } }] },
-        ],
-      });
-    }
-
-    if (search) {
-      const searchStr = String(search);
-      andConditions.push({
-        OR: [
-          { title: { contains: searchStr, mode: "insensitive" } },
-          { brandName: { contains: searchStr, mode: "insensitive" } },
-        ],
-      });
-    }
-
-    const where: any = { AND: andConditions };
-
-    const [total, products] = await Promise.all([
-      prisma.product.count({ where }),
-      prisma.product.findMany({
-        where,
-        skip: (pageNum - 1) * limitNum,
-        take: limitNum,
-        orderBy: { [String(sort)]: order },
-        include: { category: true, store: true },
-      }),
-    ]);
-
-    res.json({
-      products,
-      pagination: {
-        total,
-        page: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-      },
+    const result = await productService.getProductsInfinite({
+      cursor: req.query.cursor ? Number(req.query.cursor) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : 20,
+      search: req.query.search as string | undefined,
+      categoryId: req.query.categoryId
+        ? Number(req.query.categoryId)
+        : undefined,
+      minPrice: req.query.minPrice ? Number(req.query.minPrice) : undefined,
+      maxPrice: req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
+      gender: req.query.gender as string | undefined,
+      season: req.query.season as string | undefined,
+      brandName: req.query.brandName as string | undefined,
+      sort: req.query.sort as string | undefined,
     });
+
+    res.json(result);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
-// ✅ GET PRODUCTS BY CATEGORY (including subcategories)
+// ? GET PRODUCTS BY CATEGORY
 const getProductsByCategory = async (req: Request, res: Response) => {
   try {
-    const { categoryId } = req.params;
-    const { page = "1", limit = "20" } = req.query;
+    const categoryId = Number(req.params.categoryId);
+    const { page = "1", limit = "20", minPrice, maxPrice, sort } = req.query;
 
-    const category = await prisma.category.findUnique({
-      where: { id: Number(categoryId) },
-      include: {
-        children: {
-          include: { children: true },
-        },
-      },
-    });
-
-    if (!category) {
-      return res.status(404).json({ message: "Категория не найдена" });
+    if (!categoryId || isNaN(categoryId)) {
+      return res.status(400).json({ message: "Неверный ID категории" });
     }
 
-    const getAllCategoryIds = (cat: any): number[] => {
-      const ids = [cat.id];
-      if (cat.children) {
-        cat.children.forEach((child: any) => {
-          ids.push(...getAllCategoryIds(child));
-        });
-      }
-      return ids;
-    };
-
-    const categoryIds = getAllCategoryIds(category);
-
-    const products = await prisma.product.findMany({
-      where: {
-        categoryId: { in: categoryIds },
-        isActive: true,
-        archivedAt: null,
-      },
-      skip: (+page - 1) * +limit,
-      take: +limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        category: true,
-        store: {
-          select: {
-            id: true,
-            name: true,
-            logo: true,
-            isVerified: true,
-          },
-        },
-      },
+    const result = await productService.getProductsByCategory(categoryId, {
+      page: Number(page),
+      limit: Number(limit),
+      minPrice: minPrice ? Number(minPrice) : undefined,
+      maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      sort: sort as string | undefined,
     });
 
-    const total = await prisma.product.count({
-      where: {
-        categoryId: { in: categoryIds },
-        isActive: true,
-        archivedAt: null,
-      },
-    });
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Get products by category error:", error);
 
-    res.json({
-      products,
-      category,
-      pagination: {
-        total,
-        page: +page,
-        limit: +limit,
-        totalPages: Math.ceil(total / +limit),
-      },
-    });
-  } catch (error) {
-    console.error("Ошибка получения товаров категории:", error);
-    res.status(500).json({ message: "Ошибка сервера" });
+    if (error.message === "Категория не найдена") {
+      return res.status(404).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
 
+// ? ✅ GET SIMILAR PRODUCTS
 const getSimilarProducts = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -528,11 +342,11 @@ const getSimilarProducts = async (req: Request, res: Response) => {
 
 export {
   createProduct,
-  getProduct,
-  getProductById,
+  getProductByIdPublic,
+  getProductByIdOwner,
   deleteProduct,
   updateProduct,
-  getAllProductsForUsers,
+  getProductsInfinite,
   getProductsByCategory,
   getSimilarProducts,
 };

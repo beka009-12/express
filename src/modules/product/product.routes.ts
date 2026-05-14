@@ -411,8 +411,7 @@ router.post(
 );
 
 //! get
-router.get("/products", authMiddleware, productControllers.getProduct);
-router.get("/products-for-user", productControllers.getAllProductsForUsers);
+router.get("/products/infinite", productControllers.getProductsInfinite);
 router.get(
   "/products-by-category/:categoryId",
   productControllers.getProductsByCategory,
@@ -423,9 +422,14 @@ router.get(
 );
 //! get-by-id
 router.get(
-  "/product-for-user/:id",
+  "/product/user/:id",
   authMiddleware,
-  productControllers.getProductById,
+  productControllers.getProductByIdPublic,
+);
+router.get(
+  "/product/owner/:id",
+  authMiddleware,
+  productControllers.getProductByIdOwner,
 );
 //!  update
 router.patch(

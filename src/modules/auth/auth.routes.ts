@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as authControllers from "./auth.controllers";
+import * as authControllers from "./auth.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
 
 const router = Router();
@@ -179,12 +179,9 @@ const router = Router();
  */
 
 // ! POST
-router.post("/sign-up", authControllers.register);
+router.post("/sign-up", authControllers.signUpUser);
+router.post("/sign-up", authControllers.signUpSeller);
 router.post("/sign-in", authControllers.login);
 router.post("/logout", authMiddleware, authControllers.logout);
-// ! GET
-router.get("/profile", authMiddleware, authControllers.getProfile);
-// ! PUT
-router.put("/profile-update", authMiddleware, authControllers.updateProfile);
 
 export default router;

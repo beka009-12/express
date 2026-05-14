@@ -18,7 +18,8 @@ interface CreateBannerData {
   promoCode?: string;
 }
 
-export const bannerService = {
+class BannerService {
+  // ? ✅ Создание баннера
   async create(storeId: number, data: CreateBannerData) {
     return prisma.$transaction(async (tx) => {
       // 1. Проверка на наличие активного баннера
@@ -132,8 +133,9 @@ export const bannerService = {
 
       return banner;
     });
-  },
+  }
 
+  // ? ✅ Получение активных баннеров
   async getActive() {
     const now = new Date();
     const banners = await prisma.banner.findMany({
@@ -164,15 +166,17 @@ export const bannerService = {
     });
 
     return banners.sort(() => Math.random() - 0.5).slice(0, MAX_TOTAL_SLOTS);
-  },
+  }
 
+  // ? ✅ Подтверждение баннера
   async approve(id: number) {
     return prisma.banner.update({
       where: { id },
       data: { status: "APPROVED", isActive: true },
     });
-  },
+  }
 
+  // ? ✅ Отклонение баннера
   async reject(id: number, reason: string) {
     return prisma.banner.update({
       where: { id },
@@ -182,8 +186,9 @@ export const bannerService = {
         rejectReason: reason,
       },
     });
-  },
+  }
 
+  // ? ✅ Деактивация баннеров
   async deactivateExpired() {
     const now = new Date();
     return prisma.$transaction(async (tx) => {
@@ -213,5 +218,7 @@ export const bannerService = {
         data: { isActive: false },
       });
     });
-  },
-};
+  }
+}
+
+export const bannerService = new BannerService();

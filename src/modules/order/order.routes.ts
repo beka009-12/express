@@ -169,17 +169,12 @@ const router = Router();
  *                   type: integer
  */
 
-router.post("/create-order", authMiddleware, orderControllers.addToCart);
-router.get("/cart/:userId", authMiddleware, orderControllers.getCart);
-router.delete(
-  "/delete-all-cart/:userId",
-  authMiddleware,
-  orderControllers.deleteAllCart,
-);
-router.delete(
-  "/delete-by-id/:productId",
-  authMiddleware,
-  orderControllers.deleteById,
-);
+// ? POST
+router.post("/create-order", authMiddleware, orderControllers.createOrder);
+router.post("/cancel/:orderId", authMiddleware, orderControllers.cancelOrder);
+
+// ? GET
+router.get("/my-orders", authMiddleware, orderControllers.getUserOrders);
+router.get("/:orderId", authMiddleware, orderControllers.getOrderById);
 
 export default router;
