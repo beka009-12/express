@@ -26,9 +26,6 @@ const router = Router();
  *           type: integer
  *         name:
  *           type: string
- *         description:
- *           type: string
- *           nullable: true
  *         logo:
  *           type: string
  *           nullable: true
@@ -37,6 +34,21 @@ const router = Router();
  *         rating:
  *           type: number
  *           nullable: true
+ *
+ *     ProductImage:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         url:
+ *           type: string
+ *         altText:
+ *           type: string
+ *           nullable: true
+ *         isMain:
+ *           type: boolean
+ *         sortOrder:
+ *           type: integer
  *
  *     Product:
  *       type: object
@@ -52,10 +64,6 @@ const router = Router();
  *         newPrice:
  *           type: number
  *           nullable: true
- *         images:
- *           type: array
- *           items:
- *             type: string
  *         brandName:
  *           type: string
  *           nullable: true
@@ -85,18 +93,20 @@ const router = Router();
  *           type: integer
  *         soldCount:
  *           type: integer
- *         views:
- *           type: integer
+ *         isActive:
+ *           type: boolean
  *         storeId:
  *           type: integer
  *         categoryId:
  *           type: integer
- *         isActive:
- *           type: boolean
  *         category:
  *           $ref: '#/components/schemas/Category'
  *         store:
  *           $ref: '#/components/schemas/Store'
+ *         productImages:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/ProductImage'
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -111,30 +121,27 @@ const router = Router();
  *           type: integer
  *         page:
  *           type: integer
+ *         limit:
+ *           type: integer
  *         totalPages:
  *           type: integer
  *
- *     ProductListResponse:
+ *     InfiniteResponse:
  *       type: object
  *       properties:
  *         products:
  *           type: array
  *           items:
  *             $ref: '#/components/schemas/Product'
- *         pagination:
- *           $ref: '#/components/schemas/Pagination'
+ *         nextCursor:
+ *           type: integer
+ *           nullable: true
+ *         hasMore:
+ *           type: boolean
  *
  *     CreateProductInput:
  *       type: object
- *       required:
- *         - title
- *         - description
- *         - price
- *         - categoryId
- *         - gender
- *         - season
- *         - sizes
- *         - colors
+ *       required: [title, description, price, categoryId, gender, season, sizes, colors]
  *       properties:
  *         title:
  *           type: string
@@ -144,10 +151,12 @@ const router = Router();
  *           type: number
  *         newPrice:
  *           type: number
+ *           nullable: true
  *         categoryId:
  *           type: integer
  *         brandName:
  *           type: string
+ *           nullable: true
  *         sizes:
  *           type: array
  *           items:
@@ -158,6 +167,7 @@ const router = Router();
  *             type: string
  *         material:
  *           type: string
+ *           nullable: true
  *         gender:
  *           type: string
  *           enum: [MALE, FEMALE, UNISEX]
@@ -166,49 +176,31 @@ const router = Router();
  *           enum: [SPRING_SUMMER, AUTUMN_WINTER, ALL_SEASON]
  *         stockCount:
  *           type: integer
+ *           default: 0
  *
- * /commodity/products:
+ * /commodity/products/infinite:
  *   get:
  *     tags: [Product]
- *     summary: Получить товары продавца
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Список товаров магазина
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 products:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Product'
- *
- * /commodity/products-for-user:
- *   get:
- *     tags: [Product]
- *     summary: Получить все товары для пользователей
+ *     summary: Список товаров (cursor pagination)
  *     parameters:
  *       - in: query
- *         name: page
+ *         name: cursor
  *         schema:
  *           type: integer
- *           default: 1
+ *         description: ID последнего товара с предыдущей страницы
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 20
  *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
  *         name: categoryId
  *         schema:
  *           type: integer
- *       - in: query
- *         name: brandName
- *         schema:
- *           type: string
  *       - in: query
  *         name: minPrice
  *         schema:
@@ -218,32 +210,37 @@ const router = Router();
  *         schema:
  *           type: number
  *       - in: query
- *         name: search
+ *         name: gender
+ *         schema:
+ *           type: string
+ *           enum: [MALE, FEMALE, UNISEX]
+ *       - in: query
+ *         name: season
+ *         schema:
+ *           type: string
+ *           enum: [SPRING_SUMMER, AUTUMN_WINTER, ALL_SEASON]
+ *       - in: query
+ *         name: brandName
  *         schema:
  *           type: string
  *       - in: query
  *         name: sort
  *         schema:
  *           type: string
- *           default: createdAt
- *       - in: query
- *         name: order
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *           default: desc
+ *           enum: [newest, price_asc, price_desc, popular]
+ *           default: newest
  *     responses:
  *       200:
- *         description: Список товаров с пагинацией
+ *         description: Товары с cursor pagination
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ProductListResponse'
+ *               $ref: '#/components/schemas/InfiniteResponse'
  *
  * /commodity/products-by-category/{categoryId}:
  *   get:
  *     tags: [Product]
- *     summary: Товары по категории
+ *     summary: Товары по категории (включая вложенные)
  *     parameters:
  *       - in: path
  *         name: categoryId
@@ -260,40 +257,69 @@ const router = Router();
  *         schema:
  *           type: integer
  *           default: 20
+ *       - in: query
+ *         name: minPrice
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [price, createdAt]
+ *           default: createdAt
  *     responses:
  *       200:
- *         description: Список товаров с пагинацией
+ *         description: Товары категории с пагинацией
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ProductListResponse'
+ *               type: object
+ *               properties:
+ *                 products:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *                 category:
+ *                   $ref: '#/components/schemas/Category'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/Pagination'
+ *       404:
+ *         description: Категория не найдена
  *
- * /commodity/similar-products/{categoryId}:
+ * /commodity/similar-products/{id}:
  *   get:
  *     tags: [Product]
- *     summary: Похожие товары
+ *     summary: Похожие товары (по категории, бренду, полу, сезону)
  *     parameters:
  *       - in: path
- *         name: categoryId
+ *         name: id
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID товара
  *     responses:
  *       200:
- *         description: Массив похожих товаров
+ *         description: Похожие товары
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Product'
+ *               type: object
+ *               properties:
+ *                 products:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       404:
+ *         description: Товар не найден
  *
- * /commodity/product-for-user/{id}:
+ * /commodity/product/user/{id}:
  *   get:
  *     tags: [Product]
- *     summary: Получить товар по ID
- *     security:
- *       - bearerAuth: []
+ *     summary: Товар по ID (публичный)
  *     parameters:
  *       - in: path
  *         name: id
@@ -313,10 +339,37 @@ const router = Router();
  *       404:
  *         description: Товар не найден
  *
+ * /commodity/product/owner/{id}:
+ *   get:
+ *     tags: [Product]
+ *     summary: Товар по ID (для владельца магазина)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Товар
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 product:
+ *                   $ref: '#/components/schemas/Product'
+ *       401:
+ *         description: Не авторизован
+ *       404:
+ *         description: Товар не найден или нет доступа
+ *
  * /commodity/create-product:
  *   post:
  *     tags: [Product]
- *     summary: Создать товар
+ *     summary: Создать товар (только для владельца магазина)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -327,12 +380,14 @@ const router = Router();
  *             allOf:
  *               - $ref: '#/components/schemas/CreateProductInput'
  *               - type: object
+ *                 required: [images]
  *                 properties:
  *                   images:
  *                     type: array
  *                     items:
  *                       type: string
  *                       format: binary
+ *                     description: Минимум 1 фото, максимум 8
  *     responses:
  *       201:
  *         description: Товар создан
@@ -345,6 +400,10 @@ const router = Router();
  *                   type: string
  *                 product:
  *                   $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Ошибка валидации
+ *       401:
+ *         description: Не авторизован
  *
  * /commodity/product-update/{id}:
  *   patch:
@@ -375,11 +434,15 @@ const router = Router();
  *                   type: string
  *                 product:
  *                   $ref: '#/components/schemas/Product'
+ *       403:
+ *         description: Нет доступа
+ *       404:
+ *         description: Товар не найден
  *
  * /commodity/product-delete/{id}:
  *   delete:
  *     tags: [Product]
- *     summary: Удалить товар
+ *     summary: Удалить товар (soft delete)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -398,6 +461,10 @@ const router = Router();
  *               properties:
  *                 message:
  *                   type: string
+ *       403:
+ *         description: Нет доступа
+ *       404:
+ *         description: Товар не найден
  */
 
 //! create

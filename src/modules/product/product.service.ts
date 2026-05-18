@@ -5,7 +5,7 @@ import { CreateProductDto } from "./product.validation";
 
 export class ProductService {
   // ? ✅ CREATE PRODUCT
-  async createProdct(
+  async createProduct(
     ownerId: number,
     dto: CreateProductDto,
     imageData: Array<{ url: string; isMain?: boolean; altText?: string }>,
@@ -103,13 +103,13 @@ export class ProductService {
 
   // ? ✅ GET PRODUCT BY ID FOR OWNER
   async getProductById(productId: number, ownerId?: number) {
-    const where: any = { id: productId };
+    const where: Prisma.ProductWhereInput = { id: productId };
 
     if (ownerId) {
-      where.store = { ownerId }; // проверяем право доступа
+      where.store = { ownerId };
     }
 
-    return await prisma.product.findUnique({
+    return await prisma.product.findFirst({
       where,
       include: {
         category: true,
@@ -117,6 +117,74 @@ export class ProductService {
         productImages: { orderBy: { sortOrder: "asc" } },
       },
     });
+  }
+
+  // ? ✅ GET SIMILAR PRODUCTS
+  async getSimilarProducts(productId: number, limit = 10) {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { category: true },
+    });
+
+    if (!product) throw new Error("Товар не найден");
+
+    const where: Prisma.ProductWhereInput = {
+      categoryId: product.categoryId,
+      id: { not: productId },
+      isActive: true,
+      archivedAt: null,
+    };
+
+    const orConditions: Prisma.ProductWhereInput[] = [];
+
+    // 1. Тот же бренд
+    if (product.brandName) {
+      orConditions.push({ brandName: product.brandName });
+    }
+
+    // 2. Тот же пол
+    if (product.gender) {
+      orConditions.push({ gender: product.gender });
+    }
+
+    // 3. Тот же сезон
+    if (product.season) {
+      orConditions.push({ season: product.season });
+    }
+
+    if (orConditions.length > 0) {
+      where.OR = orConditions;
+    }
+
+    const similarProducts = await prisma.product.findMany({
+      where,
+      take: limit,
+      orderBy: [
+        { soldCount: "desc" }, // сначала популярные
+        { createdAt: "desc" }, // потом новые
+      ],
+      include: {
+        category: true,
+        store: {
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+            isVerified: true,
+          },
+        },
+        productImages: {
+          orderBy: { sortOrder: "asc" },
+          take: 1,
+        },
+      },
+    });
+
+    if (similarProducts.length < 3) {
+      return this.getFallbackSimilarProducts(productId, limit);
+    }
+
+    return similarProducts;
   }
 
   // ? ✅ DELETE PRODUCT
@@ -205,27 +273,36 @@ export class ProductService {
     if (brandName)
       where.brandName = { contains: brandName, mode: "insensitive" };
 
+    const andFilters: Prisma.ProductWhereInput[] = [];
+
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: "insensitive" } },
-        { brandName: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-      ];
+      andFilters.push({
+        OR: [
+          { title: { contains: search, mode: "insensitive" } },
+          { brandName: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+        ],
+      });
     }
 
-    // ? Фильтрация по цене с учетом скидки
-    if (minPrice || maxPrice) {
+    if (minPrice !== undefined || maxPrice !== undefined) {
       const min = minPrice ?? 0;
       const max = maxPrice ?? 99999999;
-      where.OR = [
-        {
-          AND: [
-            { newPrice: { not: null } },
-            { newPrice: { gte: min, lte: max } },
-          ],
-        },
-        { AND: [{ newPrice: null }, { price: { gte: min, lte: max } }] },
-      ];
+      andFilters.push({
+        OR: [
+          {
+            AND: [
+              { newPrice: { not: null } },
+              { newPrice: { gte: min, lte: max } },
+            ],
+          },
+          { AND: [{ newPrice: null }, { price: { gte: min, lte: max } }] },
+        ],
+      });
+    }
+
+    if (andFilters.length > 0) {
+      where.AND = andFilters;
     }
 
     // ? Сортировка
@@ -347,6 +424,73 @@ export class ProductService {
     };
   }
 
+  // ? ✅ UPDATE PRODUCT
+  async updateProduct(
+    productId: number,
+    ownerId: number,
+    dto: {
+      title?: string;
+      description?: string;
+      price?: number;
+      newPrice?: number | null;
+      stockCount?: number;
+      categoryId?: number;
+      sizes?: string[];
+      colors?: string[];
+      gender?: string;
+      season?: string;
+      brandName?: string | null;
+      material?: string | null;
+    },
+  ) {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { store: true },
+    });
+
+    if (!product) throw new Error("Товар не найден");
+    if (product.store.ownerId !== ownerId) throw new Error("Нет доступа");
+
+    const parsedPrice = dto.price ?? Number(product.price);
+    const parsedNewPrice =
+      dto.newPrice !== undefined
+        ? dto.newPrice
+        : product.newPrice !== null
+          ? Number(product.newPrice)
+          : null;
+
+    if (parsedNewPrice !== null && parsedNewPrice >= parsedPrice) {
+      throw new Error("Цена со скидкой должна быть меньше основной");
+    }
+
+    const stockCount = dto.stockCount ?? product.stockCount;
+
+    return await prisma.product.update({
+      where: { id: productId },
+      data: {
+        ...(dto.title && { title: dto.title }),
+        ...(dto.description && { description: dto.description }),
+        ...(dto.price !== undefined && { price: parsedPrice }),
+        newPrice: parsedNewPrice,
+        stockCount,
+        ...(dto.categoryId && { categoryId: dto.categoryId }),
+        brandName: dto.brandName !== undefined ? dto.brandName : product.brandName,
+        ...(dto.sizes && { sizes: dto.sizes }),
+        ...(dto.colors && { colors: dto.colors }),
+        ...(dto.gender && { gender: dto.gender as any }),
+        ...(dto.season && { season: dto.season as any }),
+        ...(dto.material !== undefined && { material: dto.material }),
+        archivedAt: stockCount === 0 ? new Date() : null,
+        isActive: stockCount > 0,
+      },
+      include: {
+        category: true,
+        store: { select: { id: true, name: true, logo: true } },
+        productImages: { orderBy: { sortOrder: "asc" } },
+      },
+    });
+  }
+
   private getAllCategoryIds(category: any): number[] {
     const ids: number[] = [category.id];
     if (category.children?.length) {
@@ -354,7 +498,25 @@ export class ProductService {
         ids.push(...this.getAllCategoryIds(child));
       }
     }
+
     return ids;
+  }
+
+  private async getFallbackSimilarProducts(productId: number, limit: number) {
+    return await prisma.product.findMany({
+      where: {
+        id: { not: productId },
+        isActive: true,
+        archivedAt: null,
+      },
+      take: limit,
+      orderBy: { soldCount: "desc" },
+      include: {
+        category: true,
+        store: { select: { id: true, name: true, logo: true } },
+        productImages: { orderBy: { sortOrder: "asc" }, take: 1 },
+      },
+    });
   }
 }
 

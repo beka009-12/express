@@ -72,18 +72,12 @@ const router = Router();
  *                 favorite:
  *                   $ref: '#/components/schemas/FavoriteItem'
  *
- * /favorite/favorite/{userId}:
+ * /favorite/favorites:
  *   get:
  *     tags: [Favorite]
- *     summary: Получить избранное пользователя
+ *     summary: Получить избранное текущего пользователя
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: integer
  *     responses:
  *       200:
  *         description: Список избранного
@@ -122,8 +116,7 @@ const router = Router();
  */
 
 router.post("/favorite-add", authMiddleware, favorite.addFavorite);
-router.get("/favorite/:userId", authMiddleware, favorite.getFavorites);
-
+router.get("/favorites", authMiddleware, favorite.getFavorites);
 router.delete(
   "/favorite-delete/:productId",
   authMiddleware,

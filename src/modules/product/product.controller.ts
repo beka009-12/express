@@ -1,9 +1,7 @@
 import { Request, Response } from "express";
 import { supabase } from "../../plugin/supabase";
-import { prisma } from "../../prisma";
-import { Prisma } from "@prisma/client";
-import { CreateProductDto } from "./product.validation";
 import { productService } from "./product.service";
+import { CreateProductDto } from "./product.validation";
 
 interface AuthRequest extends Request {
   user?: {
@@ -72,7 +70,7 @@ const createProduct = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const product = await productService.createProdct(
+    const product = await productService.createProduct(
       req.user!.id,
       dto,
       imageData,
@@ -175,7 +173,14 @@ const deleteProduct = async (req: AuthRequest, res: Response) => {
 // ? ✅ UPDATE PRODUCT
 const updateProduct = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const productId = Number(req.params.id);
+    if (!productId || isNaN(productId)) {
+      return res.status(400).json({ message: "Неверный ID товара" });
+    }
+
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+
     const {
       title,
       description,
@@ -183,70 +188,47 @@ const updateProduct = async (req: AuthRequest, res: Response) => {
       newPrice,
       stockCount,
       categoryId,
-      size,
-      color,
+      sizes,
+      colors,
       gender,
       season,
       brandName,
+      material,
     } = req.body;
 
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Не авторизован" });
-
-    // Ищем товар и проверяем владельца
-    const product = await prisma.product.findUnique({
-      where: { id: Number(id) },
-      include: { store: true },
-    });
-
-    if (!product) return res.status(404).json({ message: "Товар не найден" });
-    if (product.store.ownerId !== userId)
-      return res.status(403).json({ message: "Нет доступа" });
-
-    // Валидация цен (с проверкой на NaN)
-    const parsedPrice =
-      price !== undefined ? Number(price) : Number(product.price);
-    let parsedNewPrice = product.newPrice ? Number(product.newPrice) : null;
-
-    if (newPrice !== undefined) {
-      parsedNewPrice =
-        newPrice === null || newPrice === "" ? null : Number(newPrice);
-    }
-
-    if (parsedNewPrice !== null && parsedNewPrice >= parsedPrice) {
-      return res
-        .status(400)
-        .json({ message: "Цена со скидкой должна быть меньше основной" });
-    }
-
-    // Логика наличия
-    const currentStockCount =
-      stockCount !== undefined ? Number(stockCount) : product.stockCount;
-
-    const updated = await prisma.product.update({
-      where: { id: product.id },
-      data: {
-        ...(title && { title }),
-        ...(description && { description }),
-        ...(price !== undefined && { price: parsedPrice }),
-        newPrice: parsedNewPrice, // Обновляем (может быть null)
-        stockCount: currentStockCount,
-        ...(categoryId && { categoryId: Number(categoryId) }),
-        brandName:
-          brandName !== undefined ? brandName || null : product.brandName,
-        ...(size && { size: size.trim() }),
-        ...(color && { color: color.trim() }),
-        ...(gender && { gender: gender.trim() }),
-        ...(season && { season: season.trim() }),
-        // Автоматические статусы
-        archivedAt: currentStockCount === 0 ? new Date() : null,
-        isActive: currentStockCount > 0,
-      },
+    const updated = await productService.updateProduct(productId, userId, {
+      title,
+      description,
+      price: price !== undefined ? Number(price) : undefined,
+      newPrice:
+        newPrice === "" || newPrice === null
+          ? null
+          : newPrice !== undefined
+            ? Number(newPrice)
+            : undefined,
+      stockCount: stockCount !== undefined ? Number(stockCount) : undefined,
+      categoryId: categoryId ? Number(categoryId) : undefined,
+      sizes:
+        typeof sizes === "string" ? JSON.parse(sizes) : sizes,
+      colors:
+        typeof colors === "string" ? JSON.parse(colors) : colors,
+      gender,
+      season,
+      brandName: brandName !== undefined ? brandName || null : undefined,
+      material: material !== undefined ? material || null : undefined,
     });
 
     res.json({ message: "Товар обновлён", product: updated });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Update error:", error);
+
+    if (error.message === "Товар не найден")
+      return res.status(404).json({ message: error.message });
+    if (error.message === "Нет доступа")
+      return res.status(403).json({ message: error.message });
+    if (error.message.includes("скидкой"))
+      return res.status(400).json({ message: error.message });
+
     res.status(500).json({ message: "Ошибка обновления" });
   }
 };
@@ -309,31 +291,21 @@ const getProductsByCategory = async (req: Request, res: Response) => {
 // ? ✅ GET SIMILAR PRODUCTS
 const getSimilarProducts = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const productId = Number(req.params.id);
 
-    if (!id) {
-      return res.status(400).json({ message: "Не указан id товара" });
+    if (!productId || isNaN(productId)) {
+      return res.status(400).json({ message: "Неверный ID товара" });
     }
 
-    const currentProduct = await prisma.product.findUnique({
-      where: { id: Number(id) },
-    });
-
-    if (!currentProduct) {
-      return res.status(404).json({ message: "Товар не найден" });
-    }
-
-    const similarProducts = await prisma.product.findMany({
-      where: {
-        categoryId: currentProduct.categoryId,
-        id: { not: currentProduct.id },
-      },
-      take: 6,
-    });
-
-    return res.status(200).json(similarProducts);
-  } catch (error) {
+    const products = await productService.getSimilarProducts(productId);
+    return res.status(200).json({ products });
+  } catch (error: any) {
     console.error(error);
+
+    if (error.message === "Товар не найден") {
+      return res.status(404).json({ message: error.message });
+    }
+
     return res
       .status(500)
       .json({ message: "Ошибка сервера при получении похожих товаров" });
