@@ -88,7 +88,7 @@ const router = Router();
  * /auth/sign-up:
  *   post:
  *     tags: [Auth]
- *     summary: Регистрация пользователя
+ *     summary: Регистрация покупателя
  *     requestBody:
  *       required: true
  *       content:
@@ -102,11 +102,33 @@ const router = Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Email уже зарегистрирован или не заполнены обязательные поля
+ *
+ * /auth/sign-up-seller:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Регистрация продавца (role=OWNER)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RegisterInput'
+ *     responses:
+ *       201:
+ *         description: Продавец создан
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Email уже зарегистрирован или не заполнены обязательные поля
  *
  * /auth/sign-in:
  *   post:
  *     tags: [Auth]
- *     summary: Вход пользователя
+ *     summary: Вход
  *     requestBody:
  *       required: true
  *       content:
@@ -119,7 +141,14 @@ const router = Router();
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
+ *               type: object
+ *               properties:
+ *                 result:
+ *                   $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Не заполнены обязательные поля
+ *       500:
+ *         description: Неверный email или пароль
  *
  * /auth/logout:
  *   post:
@@ -137,50 +166,13 @@ const router = Router();
  *               properties:
  *                 message:
  *                   type: string
- *
- * /auth/profile:
- *   get:
- *     tags: [Auth]
- *     summary: Получить профиль
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Профиль пользователя
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 user:
- *                   $ref: '#/components/schemas/User'
- *
- * /auth/profile-update:
- *   put:
- *     tags: [Auth]
- *     summary: Обновить профиль
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateProfileInput'
- *     responses:
- *       200:
- *         description: Профиль обновлён
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 user:
- *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Не авторизован
  */
 
 // ! POST
 router.post("/sign-up", authControllers.signUpUser);
-router.post("/sign-up", authControllers.signUpSeller);
+router.post("/sign-up-seller", authControllers.signUpSeller);
 router.post("/sign-in", authControllers.login);
 router.post("/logout", authMiddleware, authControllers.logout);
 

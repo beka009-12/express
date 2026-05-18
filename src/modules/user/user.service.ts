@@ -1,30 +1,45 @@
 import { prisma } from "../../prisma";
 
-export const UserService = {
-  // ! Получение профиля
-  async getProfile(userId: number) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        addresses: true,
-        favorites: true,
-        cartItems: true,
-      },
-      omit: { password: true }, // ? скрываем пароль
-    });
+interface UpdateProfileDto {
+  name?: string;
+  phone?: string;
+  avatar?: string;
+  email?: string;
+}
 
-    return user;
+export const UserService = {
+  async getProfile(userId: number) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      omit: { password: true },
+      include: {
+        addresses: { orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }] },
+        favorites: {
+          include: {
+            product: {
+              select: { id: true, title: true, price: true, newPrice: true, productImages: { take: 1, orderBy: { sortOrder: "asc" } } },
+            },
+          },
+        },
+        cartItems: {
+          include: {
+            product: {
+              select: { id: true, title: true, price: true, newPrice: true, stockCount: true, productImages: { take: 1, orderBy: { sortOrder: "asc" } } },
+            },
+          },
+        },
+      },
+    });
   },
 
-  // ! Обновление профиля
-  async updateProfile(userId: number, data: any) {
-    const updatedUser = await prisma.user.update({
+  async updateProfile(userId: number, dto: UpdateProfileDto) {
+    return prisma.user.update({
       where: { id: userId },
       data: {
-        name: data.name,
-        phone: data.phone,
-        avatar: data.avatar,
-        email: data.email,
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.avatar !== undefined && { avatar: dto.avatar }),
+        ...(dto.email !== undefined && { email: dto.email }),
       },
       select: {
         id: true,
@@ -35,7 +50,5 @@ export const UserService = {
         role: true,
       },
     });
-
-    return updatedUser;
   },
 };

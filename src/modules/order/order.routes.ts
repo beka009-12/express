@@ -8,72 +8,88 @@ const router = Router();
  * @openapi
  * components:
  *   schemas:
- *     CartProduct:
+ *     DeliveryMethod:
+ *       type: string
+ *       enum: [PICKUP, COURIER_BISHKEK, COURIER_REGION, EXPRESS]
+ *
+ *     OrderStatus:
+ *       type: string
+ *       enum: [PENDING, PAID, PROCESSING, SHIPPED, COMPLETED, CANCELED]
+ *
+ *     OrderItem:
  *       type: object
  *       properties:
  *         id:
  *           type: integer
- *         title:
- *           type: string
- *         price:
+ *         productId:
+ *           type: integer
+ *         quantity:
+ *           type: integer
+ *         priceAtBuy:
  *           type: number
- *         description:
- *           type: string
- *         images:
- *           type: array
- *           items:
- *             type: string
- *         stockCount:
- *           type: integer
- *         isActive:
- *           type: boolean
- *         colors:
- *           type: array
- *           items:
- *             type: string
- *         sizes:
- *           type: array
- *           items:
- *             type: string
- *         brandName:
- *           type: string
+ *           description: Цена на момент покупки
+ *         newPriceAtBuy:
+ *           type: number
  *           nullable: true
- *         categoryId:
- *           type: integer
+ *           description: Акционная цена на момент покупки
  *
- *     CartItem:
+ *     Order:
  *       type: object
  *       properties:
  *         id:
  *           type: integer
  *         userId:
  *           type: integer
- *         productId:
+ *         storeId:
  *           type: integer
- *         quantity:
- *           type: integer
+ *         totalAmount:
+ *           type: number
+ *         deliveryCost:
+ *           type: number
+ *         finalAmount:
+ *           type: number
+ *         status:
+ *           $ref: '#/components/schemas/OrderStatus'
+ *         deliveryMethod:
+ *           $ref: '#/components/schemas/DeliveryMethod'
+ *         deliveryName:
+ *           type: string
+ *         deliveryPhone:
+ *           type: string
+ *         deliveryAddress:
+ *           type: string
+ *         trackingNumber:
+ *           type: string
+ *           nullable: true
+ *         items:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/OrderItem'
  *         createdAt:
  *           type: string
  *           format: date-time
- *         product:
- *           $ref: '#/components/schemas/CartProduct'
  *
- *     AddToCartInput:
+ *     CreateOrderInput:
  *       type: object
- *       required:
- *         - productId
- *         - quantity
+ *       required: [deliveryMethod]
  *       properties:
- *         productId:
+ *         deliveryMethod:
+ *           $ref: '#/components/schemas/DeliveryMethod'
+ *         addressId:
  *           type: integer
- *         quantity:
- *           type: integer
- *           minimum: 1
+ *           description: ID адреса. Если не указан — берётся дефолтный адрес пользователя
+ *         paymentMethod:
+ *           type: string
+ *           default: CARD
  *
  * /order/create-order:
  *   post:
  *     tags: [Order]
- *     summary: Добавить товар в корзину
+ *     summary: Создать заказ из корзины
+ *     description: |
+ *       Создаёт заказы по каждому магазину из корзины в одной транзакции.
+ *       Корзина должна быть непустой, адрес доставки — существовать.
+ *       После создания корзина очищается, остатки товаров уменьшаются.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -81,92 +97,112 @@ const router = Router();
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/AddToCartInput'
+ *             $ref: '#/components/schemas/CreateOrderInput'
  *     responses:
  *       201:
- *         description: Товар добавлен в корзину
+ *         description: Заказы успешно созданы
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/CartItem'
- *       200:
- *         description: Количество обновлено
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/CartItem'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Корзина пуста / адрес не найден / недостаточно товара на складе
+ *       401:
+ *         description: Не авторизован
  *
- * /order/cart/{userId}:
+ * /order/my-orders:
  *   get:
  *     tags: [Order]
- *     summary: Получить корзину пользователя
+ *     summary: Мои заказы
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           $ref: '#/components/schemas/OrderStatus'
+ *       - in: query
+ *         name: page
  *         schema:
  *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
  *     responses:
  *       200:
- *         description: Корзина пользователя
+ *         description: Список заказов пользователя
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/CartItem'
+ *                 $ref: '#/components/schemas/Order'
+ *       404:
+ *         description: Заказы не найдены
  *
- * /order/delete-all-cart/{userId}:
- *   delete:
+ * /order/{orderId}:
+ *   get:
  *     tags: [Order]
- *     summary: Очистить корзину
+ *     summary: Получить заказ по ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: userId
+ *         name: orderId
  *         required: true
  *         schema:
  *           type: integer
  *     responses:
  *       200:
- *         description: Корзина очищена
+ *         description: Заказ
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 deletedCount:
- *                   type: integer
+ *               $ref: '#/components/schemas/Order'
+ *       404:
+ *         description: Заказ не найден
  *
- * /order/delete-by-id/{productId}:
- *   delete:
+ * /order/cancel/{orderId}:
+ *   post:
  *     tags: [Order]
- *     summary: Удалить товар из корзины
+ *     summary: Отменить заказ
+ *     description: Можно отменить только заказы в статусе PENDING или PAID
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: productId
+ *         name: orderId
  *         required: true
  *         schema:
  *           type: integer
  *     responses:
  *       200:
- *         description: Товар удалён
+ *         description: Заказ отменён
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
+ *                 success:
+ *                   type: boolean
  *                 message:
  *                   type: string
- *                 deletedCount:
- *                   type: integer
+ *       400:
+ *         description: Заказ нельзя отменить (статус не позволяет)
+ *       404:
+ *         description: Заказ не найден
  */
 
 // ? POST
