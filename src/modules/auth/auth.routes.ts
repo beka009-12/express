@@ -168,6 +168,60 @@ const router = Router();
  *                   type: string
  *       401:
  *         description: Не авторизован
+ *
+ * /auth/google/buyer:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Вход/регистрация покупателя через Google
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [idToken]
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *                 description: Google ID токен полученный на фронте
+ *     responses:
+ *       200:
+ *         description: Успешный вход
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: idToken не передан
+ *       401:
+ *         description: Неверный Google токен
+ *
+ * /auth/google/seller:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Вход/регистрация продавца через Google
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [idToken]
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *                 description: Google ID токен полученный на фронте
+ *     responses:
+ *       200:
+ *         description: Успешный вход
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: idToken не передан
+ *       401:
+ *         description: Неверный Google токен
  */
 
 // ! POST
@@ -175,5 +229,7 @@ router.post("/sign-up", authControllers.signUpUser);
 router.post("/sign-up-seller", authControllers.signUpSeller);
 router.post("/sign-in", authControllers.login);
 router.post("/logout", authMiddleware, authControllers.logout);
+router.post("/google/buyer", authControllers.googleBuyer);
+router.post("/google/seller", authControllers.googleSeller);
 
 export default router;

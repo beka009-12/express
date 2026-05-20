@@ -1,7 +1,10 @@
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcrypt";
+import { OAuth2Client } from "google-auth-library";
 import { prisma } from "../../prisma";
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 type UserRole = "USER" | "OWNER";
 class AuthService {
@@ -103,6 +106,64 @@ class AuthService {
       token,
     };
   }
+
+  async googleAuth(idToken: string, role: "USER" | "OWNER") {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload?.email) throw new Error("INVALID_GOOGLE_TOKEN");
+
+    const { sub: googleId, email, name, picture } = payload;
+
+    // Уже есть аккаунт через Google
+    let user = await prisma.user.findUnique({ where: { googleId } });
+
+    if (!user) {
+      // Есть аккаунт через email — привязываем Google
+      user = await prisma.user.findUnique({ where: { email } });
+
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId },
+        });
+      } else {
+        // Новый пользователь
+        user = await prisma.user.create({
+          data: {
+            email,
+            password: "",
+            name: name ?? null,
+            avatar: picture ?? null,
+            googleId,
+            role,
+          },
+        });
+      }
+    }
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role, jti: uuidv4() },
+      process.env.JWT_SECRET!,
+      { expiresIn: "7d" },
+    );
+
+    return {
+      message: "Вход через Google выполнен",
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: user.role,
+      },
+      token,
+    };
+  }
 }
 
 export const authService = new AuthService();
+

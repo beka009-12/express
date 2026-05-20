@@ -81,6 +81,7 @@ model User {
   avatar    String?
   phone     String?
   role      UserRole  @default(USER)
+  googleId  String?   @unique
   deletedAt DateTime?
 
   cartItems Cart[]
@@ -168,6 +169,8 @@ model Product {
   stockCount Int @default(0)
   soldCount  Int @default(0)
   views      Int @default(0)
+
+  tags       String[]
 
   isActive   Boolean   @default(true)
   archivedAt DateTime?
