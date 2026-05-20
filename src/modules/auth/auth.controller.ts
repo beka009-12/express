@@ -105,4 +105,36 @@ const logout = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export { signUpUser, signUpSeller, login, logout };
+const googleBuyer = async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken)
+      return res.status(400).json({ message: "idToken обязателен" });
+
+    const result = await authService.googleAuth(idToken, "USER");
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Google buyer auth error:", error);
+    if (error.message === "INVALID_GOOGLE_TOKEN")
+      return res.status(401).json({ message: "Неверный Google токен" });
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+const googleSeller = async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken)
+      return res.status(400).json({ message: "idToken обязателен" });
+
+    const result = await authService.googleAuth(idToken, "OWNER");
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Google seller auth error:", error);
+    if (error.message === "INVALID_GOOGLE_TOKEN")
+      return res.status(401).json({ message: "Неверный Google токен" });
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export { signUpUser, signUpSeller, login, logout, googleBuyer, googleSeller };
