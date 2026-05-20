@@ -124,3 +124,7 @@ src/modules/shops/
 ```
 
 `src/router/index.ts` — add `router.use("/shops", shopsRoutes)`
+
+## Implementation Notes
+
+- In `shops.routes.ts`, register `/my` **before** `/:id` — Express matches routes top-down and would otherwise capture the literal string `"my"` as an id param.
