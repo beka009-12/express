@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // url      = env("DATABASE_URL")
 }
 
 // ====================== ENUMS ======================
@@ -119,6 +119,7 @@ model Store {
   updatedAt DateTime @updatedAt
   banners   Banner[]
   orders    Order[]
+  promoCodeUsages PromoCodeUsage[]
 
   @@index([ownerId])
   @@map("stores")
@@ -170,7 +171,7 @@ model Product {
   soldCount  Int @default(0)
   views      Int @default(0)
 
-  tags       String[]
+  tags String[]
 
   isActive   Boolean   @default(true)
   archivedAt DateTime?
@@ -246,9 +247,10 @@ model Banner {
   rejectReason String? // ПОЧЕМУ отклонили (важно для фидбека продавцу)
 
   // Связи
-  slot     BannerSlot?
-  products BannerProduct[]
-  store    Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  slot           BannerSlot?
+  products       BannerProduct[]
+  promoCodeUsage PromoCodeUsage?
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -286,6 +288,8 @@ model PromoCode {
   isActive   Boolean  @default(true)
   expiresAt  DateTime
 
+  usages PromoCodeUsage[]
+
   @@map("promo_codes")
 }
 
@@ -300,6 +304,25 @@ model BannerProduct {
 
   @@unique([bannerId, productId])
   @@map("banner_products")
+}
+
+model PromoCodeUsage {
+  id          Int @id @default(autoincrement())
+  promoCodeId Int
+  bannerId    Int
+  storeId     Int
+
+  promoCode PromoCode @relation(fields: [promoCodeId], references: [id])
+  banner    Banner    @relation(fields: [bannerId], references: [id], onDelete: Cascade)
+  store     Store     @relation(fields: [storeId], references: [id])
+
+  usedAt DateTime @default(now())
+
+  @@unique([promoCodeId, storeId])
+  @@unique([bannerId])
+  @@index([promoCodeId])
+  @@index([storeId])
+  @@map("promo_code_usages")
 }
 
 // ! Отзывы и адреса 
