@@ -13,17 +13,27 @@ const getActiveBanners = async (req: Request, res: Response) => {
 
 const createBanner = async (req: Request, res: Response) => {
   try {
-    // В будущем storeId лучше брать из req.user.storeId (из токена)
     const storeId = Number(req.params.storeId);
-
     const banner = await bannerService.create(storeId, req.body);
     res.status(201).json({ banner });
   } catch (error: any) {
     console.error("Ошибка при создании баннера:", error);
 
-    // Если это наша кастомная ошибка (например, "баннер уже существует")
     if (error.message.includes("уже есть активный баннер")) {
       return res.status(400).json({ message: error.message });
+    }
+    if (error.message === "PROMO_INVALID") {
+      return res
+        .status(400)
+        .json({ message: "Промокод недействителен или истёк" });
+    }
+    if (error.message === "PROMO_EXHAUSTED") {
+      return res.status(400).json({ message: "Промокод больше недоступен" });
+    }
+    if (error.message === "PROMO_STORE_ALREADY_USED") {
+      return res
+        .status(400)
+        .json({ message: "Ваш магазин уже использовал этот промокод" });
     }
 
     res.status(500).json({ message: "Ошибка сервера при создании баннера" });
