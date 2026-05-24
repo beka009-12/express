@@ -470,6 +470,31 @@ const router = Router();
 //! create
 const upload = multer({ storage: multer.memoryStorage() });
 
+/**
+ * @openapi
+ * /commodity/my-products:
+ *   get:
+ *     tags: [Product]
+ *     summary: Все товары текущего продавца
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Список товаров продавца
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 products:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       401:
+ *         description: Не авторизован
+ */
+router.get("/my-products", authMiddleware, productControllers.getMyProducts);
+
 router.post(
   "/create-product",
   authMiddleware,

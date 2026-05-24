@@ -312,6 +312,19 @@ const getSimilarProducts = async (req: Request, res: Response) => {
   }
 };
 
+const getMyProducts = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+
+    const products = await productService.getMyProducts(userId);
+    return res.status(200).json({ products });
+  } catch (error) {
+    console.error("Ошибка получения товаров:", error);
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
 export {
   createProduct,
   getProductByIdPublic,
@@ -321,4 +334,5 @@ export {
   getProductsInfinite,
   getProductsByCategory,
   getSimilarProducts,
+  getMyProducts,
 };

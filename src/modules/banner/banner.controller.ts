@@ -70,4 +70,15 @@ const rejectBanner = async (req: Request, res: Response) => {
   }
 };
 
-export { getActiveBanners, createBanner, approveBanner, rejectBanner };
+const getOwnBanner = async (req: Request, res: Response) => {
+  try {
+    const storeId = Number(req.params.storeId);
+    const banner = await bannerService.getOwn(storeId);
+    res.status(200).json({ banner: banner ?? null });
+  } catch (error) {
+    console.error("Ошибка при получении своего баннера:", error);
+    res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export { getActiveBanners, getOwnBanner, createBanner, approveBanner, rejectBanner };

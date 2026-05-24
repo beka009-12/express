@@ -25,7 +25,6 @@ class BannerService {
       const existingBanner = await tx.banner.findFirst({
         where: {
           storeId,
-          isActive: true,
           status: { in: ["PENDING", "APPROVED"] },
           deadline: { gt: new Date() },
         },
@@ -158,6 +157,34 @@ class BannerService {
     });
 
     return banners.sort(() => Math.random() - 0.5).slice(0, MAX_TOTAL_SLOTS);
+  }
+
+  // ? ✅ Получение своего баннера
+  async getOwn(storeId: number) {
+    const now = new Date();
+    return prisma.banner.findFirst({
+      where: {
+        storeId,
+        status: { in: ["PENDING", "APPROVED"] },
+        deadline: { gt: now },
+      },
+      include: {
+        slot: true,
+        products: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+                newPrice: true,
+                images: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   // ? ✅ Подтверждение баннера

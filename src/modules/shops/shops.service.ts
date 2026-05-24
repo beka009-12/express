@@ -174,6 +174,72 @@ class ShopsService {
     return { message: "Магазин реактивирован" };
   }
 
+  async getShopOrders(
+    ownerId: number,
+    filters?: { status?: OrderStatus; page?: number; limit?: number },
+  ) {
+    const shop = await this.findOwnedShop(ownerId);
+    const { status, page = 1, limit = 20 } = filters || {};
+
+    const [total, orders] = await Promise.all([
+      prisma.order.count({
+        where: { storeId: shop.id, ...(status && { status }) },
+      }),
+      prisma.order.findMany({
+        where: { storeId: shop.id, ...(status && { status }) },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  title: true,
+                  price: true,
+                  newPrice: true,
+                  images: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return { orders, total, page, limit };
+  }
+
+  async advanceOrderStatus(ownerId: number, orderId: number) {
+    const shop = await this.findOwnedShop(ownerId);
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, storeId: shop.id },
+    });
+
+    if (!order) throw new Error("ORDER_NOT_FOUND");
+
+    const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
+      PAID: "SHIPPED",
+      SHIPPED: "COMPLETED",
+    };
+
+    const next = NEXT[order.status];
+    if (!next) throw new Error(`INVALID_TRANSITION:${order.status}`);
+
+    return prisma.order.update({
+      where: { id: orderId },
+      data: { status: next },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, title: true } },
+          },
+        },
+      },
+    });
+  }
+
   private async findOwnedShop(ownerId: number) {
     const shop = await prisma.store.findFirst({ where: { ownerId } });
     if (!shop) throw new Error("SHOP_NOT_FOUND");
