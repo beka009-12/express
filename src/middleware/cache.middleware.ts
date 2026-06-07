@@ -3,7 +3,7 @@ import { redis } from "../plugin/redis";
 
 export const cacheMiddleware = (ttl: number) => {
   return async (req: Request, res: Response, next: NextFunction) => {
-    if (req.method !== "GET" || req.headers.authorization) {
+    if (req.method !== "GET") {
       return next();
     }
 
@@ -20,14 +20,14 @@ export const cacheMiddleware = (ttl: number) => {
     }
 
     const originalJson = res.json.bind(res);
-    res.json = (body: unknown) => {
+    res.json = ((body: unknown) => {
       if (res.statusCode === 200) {
         redis.setex(key, ttl, JSON.stringify(body)).catch((err) => {
           console.error("[Redis] cache write error:", err);
         });
       }
       return originalJson(body);
-    };
+    }) as Response["json"];
 
     return next();
   };
