@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as productControllers from "./product.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 import multer from "multer";
 
 const router = Router();
@@ -470,6 +471,31 @@ const router = Router();
 //! create
 const upload = multer({ storage: multer.memoryStorage() });
 
+/**
+ * @openapi
+ * /commodity/my-products:
+ *   get:
+ *     tags: [Product]
+ *     summary: Все товары текущего продавца
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Список товаров продавца
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 products:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       401:
+ *         description: Не авторизован
+ */
+router.get("/my-products", authMiddleware, productControllers.getMyProducts);
+
 router.post(
   "/create-product",
   authMiddleware,
@@ -478,13 +504,15 @@ router.post(
 );
 
 //! get
-router.get("/products/infinite", productControllers.getProductsInfinite);
+router.get("/products/infinite", cacheMiddleware(600), productControllers.getProductsInfinite);
 router.get(
   "/products-by-category/:categoryId",
+  cacheMiddleware(600),
   productControllers.getProductsByCategory,
 );
 router.get(
-  `/similar-products/:categoryId`,
+  "/similar-products/:categoryId",
+  cacheMiddleware(600),
   productControllers.getSimilarProducts,
 );
 //! get-by-id

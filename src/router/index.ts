@@ -12,6 +12,7 @@ import orderRoutes from "../modules/order/order.routes";
 import favoriteRoutes from "../modules/favorite/favorite.routes";
 import searchRoutes from "../modules/search/search.routes";
 import bannerRoutes from "../modules/banner/banner.routes";
+import promoCodeRoutes from "../modules/promo-code/promo-code.routes";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/order", orderRoutes);
 router.use("/favorite", favoriteRoutes);
 router.use("/search", searchRoutes);
 router.use("/banner", bannerRoutes);
+router.use("/promo-code", promoCodeRoutes);
 
 export default router;

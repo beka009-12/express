@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { searchProducts, getSearchSuggestions } from "./search.controller";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 
 const router = Router();
 
@@ -196,7 +197,7 @@ const validateSearchQuery = (
   return next();
 };
 
-router.get("/products", validateSearchQuery, searchProducts);
-router.get("/suggestions", getSearchSuggestions);
+router.get("/products", cacheMiddleware(180), validateSearchQuery, searchProducts);
+router.get("/suggestions", cacheMiddleware(300), getSearchSuggestions);
 
 export default router;

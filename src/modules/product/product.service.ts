@@ -518,6 +518,19 @@ export class ProductService {
       },
     });
   }
+
+  async getMyProducts(ownerId: number) {
+    const store = await prisma.store.findFirst({ where: { ownerId } });
+    if (!store) return [];
+    return prisma.product.findMany({
+      where: { storeId: store.id, archivedAt: null },
+      include: {
+        category: true,
+        productImages: { orderBy: { sortOrder: "asc" }, take: 1 },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
 }
 
 export const productService = new ProductService();

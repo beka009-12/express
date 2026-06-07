@@ -3,9 +3,11 @@ import {
   approveBanner,
   createBanner,
   getActiveBanners,
+  getOwnBanner,
   rejectBanner,
 } from "./banner.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 
 /**
  * @openapi
@@ -484,7 +486,8 @@ import { authMiddleware } from "../../middleware/auth.middleware";
 
 const bannerRouter = Router();
 
-bannerRouter.get("/active", getActiveBanners);
+bannerRouter.get("/active", cacheMiddleware(300), getActiveBanners);
+bannerRouter.get("/:storeId", authMiddleware, getOwnBanner);
 bannerRouter.post("/:storeId", authMiddleware, createBanner);
 bannerRouter.patch("/:id/approve", authMiddleware, approveBanner);
 bannerRouter.patch("/:id/reject", authMiddleware, rejectBanner);

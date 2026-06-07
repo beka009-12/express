@@ -1,4 +1,5 @@
 import { prisma } from "../../prisma";
+import { promoCodeService } from "../promo-code/promo-code.service";
 
 const MAX_TOTAL_SLOTS = 5;
 const BASE_BANNER_PRICE = 500;
@@ -19,14 +20,11 @@ interface CreateBannerData {
 }
 
 class BannerService {
-  // ? ✅ Создание баннера
   async create(storeId: number, data: CreateBannerData) {
     return prisma.$transaction(async (tx) => {
-      // 1. Проверка на наличие активного баннера
       const existingBanner = await tx.banner.findFirst({
         where: {
           storeId,
-          isActive: true,
           status: { in: ["PENDING", "APPROVED"] },
           deadline: { gt: new Date() },
         },
@@ -36,24 +34,20 @@ class BannerService {
         throw new Error("У вашего магазина уже есть активный баннер.");
       }
 
-      // 2. КРИТИЧЕСКАЯ ИСПРАВЛЕННАЯ ПРОВЕРКА ПРОДУКТОВ
-      // Ищем товары ТОЛЬКО этого магазина
       const products = await tx.product.findMany({
         where: {
           id: { in: data.productIds },
-          storeId: storeId, // Защита от "кражи" чужих товаров
+          storeId,
         },
         select: { id: true, price: true },
       });
 
-      // Если нашли меньше товаров, чем передали — значит в списке были чужие ID
       if (products.length !== data.productIds.length) {
         throw new Error(
           "Некоторые товары не найдены или не принадлежат вашему магазину.",
         );
       }
 
-      // 3. Расчет новой цены для товаров (Логика пересчета)
       const calculateNewPrice = (originalPrice: number) => {
         const price = Number(originalPrice);
         switch (data.promoType) {
@@ -66,29 +60,19 @@ class BannerService {
         }
       };
 
-      // 4. Логика промокода
       let finalPrice = BASE_BANNER_PRICE;
-      if (data.promoCode) {
-        const promo = await tx.promoCode.findFirst({
-          where: {
-            code: data.promoCode,
-            isActive: true,
-            expiresAt: { gt: new Date() },
-            usedCount: { lt: tx.promoCode.fields.usageLimit },
-          },
-        });
+      let appliedPromoId: number | null = null;
 
-        if (promo) {
-          finalPrice =
-            BASE_BANNER_PRICE - (BASE_BANNER_PRICE * promo.discount) / 100;
-          await tx.promoCode.update({
-            where: { id: promo.id },
-            data: { usedCount: { increment: 1 } },
-          });
-        }
+      if (data.promoCode) {
+        const result = await promoCodeService.validateInTx(
+          tx,
+          data.promoCode,
+          storeId,
+        );
+        finalPrice = result.finalPrice;
+        appliedPromoId = result.promoId;
       }
 
-      // 5. Создание баннера
       const banner = await tx.banner.create({
         data: {
           storeId,
@@ -120,8 +104,6 @@ class BannerService {
         include: { slot: true, products: true },
       });
 
-      // 6. АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ newPrice В ТАБЛИЦЕ PRODUCT
-      // Чтобы на всем сайте цена отображалась со скидкой
       await Promise.all(
         products.map((p) =>
           tx.product.update({
@@ -130,6 +112,15 @@ class BannerService {
           }),
         ),
       );
+
+      if (appliedPromoId !== null) {
+        await promoCodeService.recordUsageInTx(
+          tx,
+          appliedPromoId,
+          banner.id,
+          storeId,
+        );
+      }
 
       return banner;
     });
@@ -166,6 +157,34 @@ class BannerService {
     });
 
     return banners.sort(() => Math.random() - 0.5).slice(0, MAX_TOTAL_SLOTS);
+  }
+
+  // ? ✅ Получение своего баннера
+  async getOwn(storeId: number) {
+    const now = new Date();
+    return prisma.banner.findFirst({
+      where: {
+        storeId,
+        status: { in: ["PENDING", "APPROVED"] },
+        deadline: { gt: now },
+      },
+      include: {
+        slot: true,
+        products: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+                newPrice: true,
+                images: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   // ? ✅ Подтверждение баннера

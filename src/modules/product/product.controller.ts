@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { supabase } from "../../plugin/supabase";
 import { productService } from "./product.service";
 import { CreateProductDto } from "./product.validation";
+import { v4 as uuidv4 } from "uuid";
+import { ALLOWED_IMAGE_MIME } from "../../plugin/multer";
 
 interface AuthRequest extends Request {
   user?: {
@@ -49,7 +51,8 @@ const createProduct = async (req: AuthRequest, res: Response) => {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.originalname}`;
+      const ext = ALLOWED_IMAGE_MIME[file.mimetype] ?? "jpg";
+      const fileName = `${uuidv4()}.${ext}`;
 
       const { data, error } = await supabase.storage
         .from("product-image")
@@ -65,7 +68,7 @@ const createProduct = async (req: AuthRequest, res: Response) => {
 
       imageData.push({
         url: publicUrl.publicUrl,
-        isMain: i === 0, // первое фото — главное
+        isMain: i === 0,
         altText: `${dto.title} - фото ${i + 1}`,
       });
     }
@@ -312,6 +315,19 @@ const getSimilarProducts = async (req: Request, res: Response) => {
   }
 };
 
+const getMyProducts = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Не авторизован" });
+
+    const products = await productService.getMyProducts(userId);
+    return res.status(200).json({ products });
+  } catch (error) {
+    console.error("Ошибка получения товаров:", error);
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
 export {
   createProduct,
   getProductByIdPublic,
@@ -321,4 +337,5 @@ export {
   getProductsInfinite,
   getProductsByCategory,
   getSimilarProducts,
+  getMyProducts,
 };

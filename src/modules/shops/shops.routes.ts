@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/auth.middleware";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 import * as shopsControllers from "./shops.controller";
 
 const router = Router();
@@ -286,6 +287,77 @@ const router = Router();
  *                   type: boolean
  *       404:
  *         description: Магазин не найден
+ *
+ * /shops/orders:
+ *   get:
+ *     tags: [Shops]
+ *     summary: Заказы моего магазина
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, PAID, PROCESSING, SHIPPED, COMPLETED, CANCELED]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Список заказов магазина
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 orders:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ *                 total:
+ *                   type: integer
+ *                 page:
+ *                   type: integer
+ *                 limit:
+ *                   type: integer
+ *       401:
+ *         description: Не авторизован
+ *       404:
+ *         description: Магазин не найден
+ *
+ * /shops/orders/{orderId}/advance:
+ *   patch:
+ *     tags: [Shops]
+ *     summary: Перевести заказ на следующий статус (PAID→SHIPPED→COMPLETED)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Статус обновлён
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Недопустимый переход статуса
+ *       401:
+ *         description: Не авторизован
+ *       404:
+ *         description: Заказ не найден
  */
 
 // NOTE: /my и static-маршруты ОБЯЗАТЕЛЬНО до /:id
@@ -294,7 +366,9 @@ router.post("/create", authMiddleware, shopsControllers.createShop);
 router.patch("/update", authMiddleware, shopsControllers.updateShop);
 router.patch("/deactivate", authMiddleware, shopsControllers.deactivateShop);
 router.patch("/reactivate", authMiddleware, shopsControllers.reactivateShop);
-router.get("/:id", shopsControllers.getShopById);
-router.get("/", shopsControllers.getAllShops);
+router.get("/orders", authMiddleware, shopsControllers.getShopOrders);
+router.patch("/orders/:orderId/advance", authMiddleware, shopsControllers.advanceOrderStatus);
+router.get("/:id", cacheMiddleware(900), shopsControllers.getShopById);
+router.get("/", cacheMiddleware(1800), shopsControllers.getAllShops);
 
 export default router;

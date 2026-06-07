@@ -35,7 +35,9 @@ export const createShop = async (req: AuthRequest, res: Response) => {
     console.error("Create shop error:", err);
     if (err.message === "SHOP_EXISTS")
       return res.status(409).json({ message: "У вас уже есть магазин" });
-    return res.status(400).json({ message: err.message || "Ошибка при создании магазина" });
+    return res
+      .status(400)
+      .json({ message: err.message || "Ошибка при создании магазина" });
   }
 };
 
@@ -92,7 +94,9 @@ export const updateShop = async (req: AuthRequest, res: Response) => {
     console.error("Update shop error:", err);
     if (err.message === "SHOP_NOT_FOUND")
       return res.status(404).json({ message: "Магазин не найден" });
-    return res.status(400).json({ message: err.message || "Ошибка при обновлении магазина" });
+    return res
+      .status(400)
+      .json({ message: err.message || "Ошибка при обновлении магазина" });
   }
 };
 
@@ -108,6 +112,47 @@ export const deactivateShop = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Магазин не найден" });
     if (err.message === "SHOP_ALREADY_INACTIVE")
       return res.status(400).json({ message: "Магазин уже деактивирован" });
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export const getShopOrders = async (req: AuthRequest, res: Response) => {
+  if (!requireOwner(req, res)) return;
+
+  try {
+    const { status, page, limit } = req.query;
+    const result = await shopsService.getShopOrders(req.user!.id, {
+      status: status as any,
+      page: Number(page) || 1,
+      limit: Number(limit) || 20,
+    });
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error("Get shop orders error:", err);
+    if (err.message === "SHOP_NOT_FOUND")
+      return res.status(404).json({ message: "Магазин не найден" });
+    return res.status(500).json({ message: "Ошибка сервера" });
+  }
+};
+
+export const advanceOrderStatus = async (req: AuthRequest, res: Response) => {
+  if (!requireOwner(req, res)) return;
+
+  try {
+    const orderId = Number(req.params.orderId);
+    if (!orderId || isNaN(orderId))
+      return res.status(400).json({ message: "Неверный ID заказа" });
+
+    const order = await shopsService.advanceOrderStatus(req.user!.id, orderId);
+    return res.status(200).json({ order });
+  } catch (err: any) {
+    console.error("Advance order status error:", err);
+    if (err.message === "SHOP_NOT_FOUND")
+      return res.status(404).json({ message: "Магазин не найден" });
+    if (err.message === "ORDER_NOT_FOUND")
+      return res.status(404).json({ message: "Заказ не найден" });
+    if (err.message?.startsWith("INVALID_TRANSITION"))
+      return res.status(400).json({ message: "Нельзя изменить статус заказа" });
     return res.status(500).json({ message: "Ошибка сервера" });
   }
 };
