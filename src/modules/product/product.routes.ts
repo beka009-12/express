@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as productControllers from "./product.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 import multer from "multer";
 
 const router = Router();
@@ -503,13 +504,15 @@ router.post(
 );
 
 //! get
-router.get("/products/infinite", productControllers.getProductsInfinite);
+router.get("/products/infinite", cacheMiddleware(600), productControllers.getProductsInfinite);
 router.get(
   "/products-by-category/:categoryId",
+  cacheMiddleware(600),
   productControllers.getProductsByCategory,
 );
 router.get(
-  `/similar-products/:categoryId`,
+  "/similar-products/:categoryId",
+  cacheMiddleware(600),
   productControllers.getSimilarProducts,
 );
 //! get-by-id
