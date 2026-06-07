@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/auth.middleware";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 import * as shopsControllers from "./shops.controller";
 
 const router = Router();
@@ -367,7 +368,7 @@ router.patch("/deactivate", authMiddleware, shopsControllers.deactivateShop);
 router.patch("/reactivate", authMiddleware, shopsControllers.reactivateShop);
 router.get("/orders", authMiddleware, shopsControllers.getShopOrders);
 router.patch("/orders/:orderId/advance", authMiddleware, shopsControllers.advanceOrderStatus);
-router.get("/:id", shopsControllers.getShopById);
-router.get("/", shopsControllers.getAllShops);
+router.get("/:id", cacheMiddleware(900), shopsControllers.getShopById);
+router.get("/", cacheMiddleware(1800), shopsControllers.getAllShops);
 
 export default router;
