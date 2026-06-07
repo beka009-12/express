@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as categoryControllers from "./category.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
+import { cacheMiddleware } from "../../middleware/cache.middleware";
 
 const router = Router();
 
@@ -149,8 +150,8 @@ const router = Router();
  *                   type: string
  */
 
-router.get("/categories", categoryControllers.getCategories);
-router.get("/categories-tree", categoryControllers.getCategoriesTree);
+router.get("/categories", cacheMiddleware(86400), categoryControllers.getCategories);
+router.get("/categories-tree", cacheMiddleware(86400), categoryControllers.getCategoriesTree);
 router.post("/create-category", authMiddleware, categoryControllers.createCategory);
 router.put("/update-category/:id", authMiddleware, categoryControllers.updateCategory);
 router.delete("/delete-category/:id", authMiddleware, categoryControllers.deleteCategory);
